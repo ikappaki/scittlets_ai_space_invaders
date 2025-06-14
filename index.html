@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <title>Space Invaders - Scittlet Demo</title>
+    <meta charset="utf-8">
+
+    <script src="https://cdn.jsdelivr.net/npm/scittle@latest/dist/scittle.min.js" type="application/javascript"></script>
+
+    <!-- Scittlet dependencies: scittlets.reagent -->
+    <meta name="scittlets.reagent.version" content="v0.5.0">
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/scittle@latest/dist/scittle.reagent.min.js"></script>
+    <!-- Scittlet dependencies: end -->
+
+    <!-- Scittlet dependencies: scittlets.dev.nrepl -->
+    <meta name="scittlets.dev.nrepl.version" content="v0.5.0">
+    <script>var SCITTLE_NREPL_WEBSOCKET_PORT = 1340;</script>
+    <script src="https://cdn.jsdelivr.net/npm/scittle@0.6.22/dist/scittle.nrepl.js" type="application/javascript"></script>
+    <!-- Scittlet dependencies: end -->
+
+    <!-- Scittle App -->
+    <script type="application/x-scittle" src="space_invaders.cljs"></script>
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #000;
+        color: #fff;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+      }
+      
+      #app {
+        min-height: 100vh;
+        background: 
+          radial-gradient(2px 2px at 20px 30px, #fff, transparent),
+          radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.5), transparent),
+          radial-gradient(1px 1px at 90px 40px, #fff, transparent),
+          radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,0.3), transparent),
+          radial-gradient(2px 2px at 160px 30px, #fff, transparent),
+          linear-gradient(180deg, #000428 0%, #004e92 100%);
+        background-repeat: repeat;
+        background-size: 200px 100px;
+        animation: starfield 20s linear infinite;
+      }
+
+      /* Starfield animation */
+      @keyframes starfield {
+        from { background-position: 0 0; }
+        to { background-position: 0 100px; }
+      }
+
+      /* Game element animations */
+      @keyframes bullet-glow {
+        0% { 
+          box-shadow: 0 0 20px #ffff00, 0 0 40px #ffff00;
+          transform: scale(1);
+        }
+        100% { 
+          box-shadow: 0 0 30px #ffff00, 0 0 60px #ffff00;
+          transform: scale(1.1);
+        }
+      }
+
+      @keyframes bulletGlow {
+        0% { 
+          box-shadow: 0 0 15px #ffff00;
+          filter: brightness(1);
+        }
+        100% { 
+          box-shadow: 0 0 25px #ffff00, 0 0 35px #ffaa00;
+          filter: brightness(1.2);
+        }
+      }
+
+      @keyframes invaderFloat {
+        0% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-3px) rotate(1deg); }
+        100% { transform: translateY(0px) rotate(0deg); }
+      }
+
+      @keyframes pulse {
+        0% { 
+          transform: scale(1);
+          box-shadow: 0 0 10px #ff0000;
+        }
+        50% { 
+          transform: scale(1.05);
+          box-shadow: 0 0 20px #ff0000, 0 0 30px #ff4444;
+        }
+        100% { 
+          transform: scale(1);
+          box-shadow: 0 0 10px #ff0000;
+        }
+      }
+
+      @keyframes explosion {
+        0% { 
+          transform: scale(0.5) rotate(0deg);
+          opacity: 1;
+        }
+        50% { 
+          transform: scale(1.2) rotate(180deg);
+          opacity: 0.8;
+        }
+        100% { 
+          transform: scale(2) rotate(360deg);
+          opacity: 0;
+        }
+      }
+
+      @keyframes playerPulse {
+        0% { 
+          box-shadow: 0 0 15px #00ff00;
+          filter: brightness(1);
+        }
+        100% { 
+          box-shadow: 0 0 25px #00ff00, 0 0 35px #00ff00;
+          filter: brightness(1.3);
+        }
+      }
+
+      @keyframes screenShake {
+        0% { transform: translate(0); }
+        10% { transform: translate(-2px, 2px); }
+        20% { transform: translate(2px, -2px); }
+        30% { transform: translate(-2px, -2px); }
+        40% { transform: translate(2px, 2px); }
+        50% { transform: translate(-2px, 2px); }
+        60% { transform: translate(2px, -2px); }
+        70% { transform: translate(-2px, -2px); }
+        80% { transform: translate(2px, 2px); }
+        90% { transform: translate(-2px, 2px); }
+        100% { transform: translate(0); }
+      }
+
+      @keyframes flashRed {
+        0% { background-color: transparent; }
+        50% { background-color: rgba(255, 0, 0, 0.3); }
+        100% { background-color: transparent; }
+      }
+
+      @keyframes fadeInOut {
+        0% { opacity: 0; }
+        50% { opacity: 1; }
+        100% { opacity: 0; }
+      }
+
+      /* HUD styling */
+      .hud {
+        background: linear-gradient(90deg, rgba(0,255,255,0.1), rgba(0,255,255,0.3), rgba(0,255,255,0.1));
+        border: 1px solid #00ffff;
+        padding: 10px;
+        margin: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0,255,255,0.5);
+      }
+
+      .score-display {
+        font-size: 24px;
+        font-weight: bold;
+        text-shadow: 0 0 10px currentColor;
+        animation: fadeInOut 2s infinite;
+      }
+
+      .game-area {
+        border: 4px solid #00ffff;
+        box-shadow: 
+          0 0 20px #00ffff,
+          inset 0 0 20px rgba(0,255,255,0.1);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .game-area::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+          linear-gradient(90deg, transparent 49%, rgba(0,255,255,0.1) 50%, transparent 51%),
+          linear-gradient(0deg, transparent 49%, rgba(0,255,255,0.1) 50%, transparent 51%);
+        background-size: 50px 50px;
+        pointer-events: none;
+        z-index: 1;
+      }
+
+      /* Game Over styling */
+      .game-over-overlay {
+        background: radial-gradient(circle, rgba(255,0,0,0.8), rgba(0,0,0,0.9));
+        animation: fadeInOut 3s infinite;
+      }
+
+      /* Button styling */
+      .neon-button {
+        background: linear-gradient(45deg, #00ff00, #00aa00);
+        border: 2px solid #00ffff;
+        color: #000;
+        font-weight: bold;
+        text-transform: uppercase;
+        transition: all 0.3s ease;
+        box-shadow: 0 0 20px #00ff00;
+      }
+
+      .neon-button:hover {
+        background: linear-gradient(45deg, #00ffff, #0088ff);
+        box-shadow: 0 0 30px #00ffff;
+        transform: scale(1.05);
+      }
+
+      /* Particle effects */
+      .particle {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        background: #fff;
+        border-radius: 50%;
+        animation: particle-float 2s linear infinite;
+      }
+
+      @keyframes particle-float {
+        0% { 
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        100% { 
+          opacity: 0;
+          transform: translateY(-50px) scale(0);
+        }
+      }
+
+      /* Energy bars and progress indicators */
+      .energy-bar {
+        width: 100%;
+        height: 10px;
+        background: rgba(255,255,255,0.2);
+        border: 1px solid #00ffff;
+        border-radius: 5px;
+        overflow: hidden;
+      }
+
+      .energy-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #ff0000, #ff6600, #ffff00, #00ff00);
+        transition: width 0.3s ease;
+        box-shadow: 0 0 10px currentColor;
+      }
+    </style>
+
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
