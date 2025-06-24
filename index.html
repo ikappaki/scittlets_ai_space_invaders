@@ -3,20 +3,21 @@
   <head>
     <title>Space Invaders - Scittlet Demo</title>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-    <script src="https://cdn.jsdelivr.net/npm/scittle@latest/dist/scittle.min.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/scittle@0.7.23/dist/scittle.min.js" type="application/javascript"></script>
 
     <!-- Scittlet dependencies: scittlets.reagent -->
-    <meta name="scittlets.reagent.version" content="v0.5.0">
+    <meta name="scittlets.reagent.version" content="v0.6.3">
     <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/scittle@latest/dist/scittle.reagent.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/scittle@0.7.23/dist/scittle.reagent.min.js"></script>
     <!-- Scittlet dependencies: end -->
 
     <!-- Scittlet dependencies: scittlets.dev.nrepl -->
-    <meta name="scittlets.dev.nrepl.version" content="v0.5.0">
+    <meta name="scittlets.dev.nrepl.version" content="v0.6.3">
     <script>var SCITTLE_NREPL_WEBSOCKET_PORT = 1340;</script>
-    <script src="https://cdn.jsdelivr.net/npm/scittle@0.6.22/dist/scittle.nrepl.js" type="application/javascript"></script>
+    <script src="https://cdn.jsdelivr.net/npm/scittle@0.7.23/dist/scittle.nrepl.js" type="application/javascript"></script>
     <!-- Scittlet dependencies: end -->
 
     <!-- Scittle App -->
@@ -248,6 +249,185 @@
         background: linear-gradient(90deg, #ff0000, #ff6600, #ffff00, #00ff00);
         transition: width 0.3s ease;
         box-shadow: 0 0 10px currentColor;
+      }
+    </style>
+
+    <!-- Mobile Touch Controls CSS -->
+    <style>
+      /* Mobile Touch Controls */
+      .mobile-controls {
+        position: fixed;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+        z-index: 1000;
+        pointer-events: none;
+      }
+
+      .touch-button {
+        width: 80px;
+        height: 80px;
+        border: 3px solid #00ffff;
+        border-radius: 50%;
+        background: linear-gradient(45deg, rgba(0,255,255,0.2), rgba(0,255,255,0.4));
+        color: #00ffff;
+        font-size: 24px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+        touch-action: manipulation;
+        transition: all 0.2s ease;
+        pointer-events: all;
+        box-shadow: 0 0 15px rgba(0,255,255,0.5);
+      }
+
+      .touch-button:active {
+        background: linear-gradient(45deg, rgba(0,255,255,0.4), rgba(0,255,255,0.6));
+        transform: scale(0.95);
+        box-shadow: 0 0 25px rgba(0,255,255,0.8);
+      }
+
+      .movement-controls {
+        display: flex;
+        gap: 15px;
+      }
+
+      .shoot-control {
+        width: 100px;
+        height: 100px;
+        font-size: 18px;
+      }
+
+      /* Hide mobile controls on desktop */
+      @media (min-width: 768px) {
+        .mobile-controls {
+          display: none;
+        }
+      }
+
+      /* Mobile responsive adjustments */
+      @media (max-width: 767px) {
+        body {
+          font-size: 14px;
+          overflow-x: hidden;
+          overflow-y: hidden;
+        }
+        
+        /* Ensure app fits in viewport without clipping */
+        #app {
+          min-height: 100vh;
+          height: 100vh;
+          overflow: hidden;
+        }
+        
+        /* Mobile HUD - make header more compact */
+        div[style*="justify-content: space-between"] {
+          padding: 8px 15px !important;
+          flex-direction: column !important;
+          gap: 8px !important;
+          min-height: auto !important;
+        }
+        
+        /* Compact HUD layout for mobile */
+        div[style*="justify-content: space-between"] > div:first-child {
+          min-width: auto !important;
+          align-items: center !important;
+        }
+        
+        div[style*="justify-content: space-between"] > div:first-child h1 {
+          font-size: 18px !important;
+          margin: 0 !important;
+          line-height: 1 !important;
+        }
+        
+        div[style*="justify-content: space-between"] > div:first-child > div {
+          font-size: 9px !important;
+          margin-top: 2px !important;
+          text-align: center !important;
+        }
+        
+        /* Compact score area */
+        div[style*="gap: 30px"] {
+          gap: 8px !important;
+          flex-wrap: wrap !important;
+          justify-content: center !important;
+        }
+        
+        div[style*="gap: 30px"] > div {
+          font-size: 11px !important;
+        }
+        
+        /* Compact audio test buttons */
+        div[style*="gap: 5px"] button {
+          padding: 3px 6px !important;
+          font-size: 10px !important;
+        }
+
+        /* Mobile game area positioning - leave more space for header */
+        .game-area {
+          border-width: 2px !important;
+          width: 800px !important;
+          height: 600px !important;
+          display: block !important;
+          overflow: hidden !important;
+          position: relative !important;
+          margin: 5px auto !important;
+          transform-origin: top center !important;
+        }
+
+        /* Responsive zoom levels with better scaling */
+        @media (max-width: 400px) {
+          .game-area { 
+            zoom: 0.35 !important;
+            margin-top: 5px !important;
+          }
+        }
+        @media (min-width: 401px) and (max-width: 500px) {
+          .game-area { 
+            zoom: 0.42 !important;
+            margin-top: 8px !important;
+          }
+        }
+        @media (min-width: 501px) and (max-width: 600px) {
+          .game-area { 
+            zoom: 0.52 !important;
+            margin-top: 10px !important;
+          }
+        }
+        @media (min-width: 601px) and (max-width: 767px) {
+          .game-area { 
+            zoom: 0.62 !important;
+            margin-top: 12px !important;
+          }
+        }
+
+        /* Hide desktop debug panels on mobile */
+        div[style*="position: absolute"][style*="top: 80px"] {
+          display: none !important;
+        }
+
+        /* Adjust touch controls for better mobile UX */
+        .mobile-controls {
+          bottom: 8px;
+          padding: 0 8px;
+        }
+
+        .touch-button {
+          width: 65px;
+          height: 65px;
+          font-size: 18px;
+        }
+
+        .shoot-control .touch-button {
+          width: 85px;
+          height: 85px;
+          font-size: 14px;
+        }
       }
     </style>
 

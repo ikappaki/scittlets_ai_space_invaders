@@ -1393,12 +1393,10 @@
          [bullet-component bullet])
 
        ;; Render invader bullets
-       ;; Render invader bullets
        (for [bullet (:invader-bullets state)]
          ^{:key (str "inv-" (:id bullet))}
          [invader-bullet-component bullet])
 
-       ;; Render UFO mystery ship (if active)
        ;; Render UFO mystery ship (if active)
        (when-let [ufo (:ufo state)]
          ^{:key (:id ufo)}
@@ -1409,7 +1407,6 @@
          ^{:key (:id barrier)}
          [barrier-component barrier])
 
-       ;; Render invaders with enhanced effects
        ;; Render invaders with enhanced effects
        (for [invader (:invaders state)]
          ^{:key (:id invader)}
@@ -1423,7 +1420,61 @@
        ;; Render particles
        (for [particle (:particles state)]
          ^{:key (:id particle)}
-         [particle-component particle])]]]))
+         [particle-component particle])]
+
+      ;; Mobile Touch Controls (added at the end, outside game area)
+      [:div {:class "mobile-controls"}
+       ;; Left side movement controls
+       [:div {:class "movement-controls"}
+        [:div {:class "touch-button"
+               :on-touch-start (fn [e]
+                                 (.preventDefault e)
+                                 (handle-key-down "ArrowLeft")
+                                 (debug-log "Touch LEFT start"))
+               :on-touch-end (fn [e]
+                               (.preventDefault e)
+                               (handle-key-up "ArrowLeft")
+                               (debug-log "Touch LEFT end"))
+               :on-mouse-down (fn [e]
+                                (.preventDefault e)
+                                (handle-key-down "ArrowLeft")
+                                (debug-log "Mouse LEFT start"))
+               :on-mouse-up (fn [e]
+                              (.preventDefault e)
+                              (handle-key-up "ArrowLeft")
+                              (debug-log "Mouse LEFT end"))}
+         "←"]
+        [:div {:class "touch-button"
+               :on-touch-start (fn [e]
+                                 (.preventDefault e)
+                                 (handle-key-down "ArrowRight")
+                                 (debug-log "Touch RIGHT start"))
+               :on-touch-end (fn [e]
+                               (.preventDefault e)
+                               (handle-key-up "ArrowRight")
+                               (debug-log "Touch RIGHT end"))
+               :on-mouse-down (fn [e]
+                                (.preventDefault e)
+                                (handle-key-down "ArrowRight")
+                                (debug-log "Mouse RIGHT start"))
+               :on-mouse-up (fn [e]
+                              (.preventDefault e)
+                              (handle-key-up "ArrowRight")
+                              (debug-log "Mouse RIGHT end"))}
+         "→"]]
+
+       ;; Right side fire control
+       [:div {:class "shoot-control"}
+        [:div {:class "touch-button"
+               :on-touch-start (fn [e]
+                                 (.preventDefault e)
+                                 (swap! game-state fire-bullet)
+                                 (debug-log "Touch FIRE"))
+               :on-click (fn [e]
+                           (.preventDefault e)
+                           (swap! game-state fire-bullet)
+                           (debug-log "Click FIRE"))}
+         "FIRE"]]]]]))
 
 ;; Init
 (defn init []
