@@ -308,6 +308,26 @@
         .mobile-controls {
           display: none;
         }
+        
+        /* Ensure desktop keeps all animations and effects */
+        #app {
+          animation: starfield 20s linear infinite !important;
+          display: block !important;
+          flex-direction: initial !important;
+          align-items: initial !important;
+        }
+        
+        /* Desktop retains full visual effects */
+        .score-display {
+          animation: fadeInOut 2s infinite !important;
+        }
+        
+        /* Desktop game area positioning - original layout */
+        .game-area {
+          margin: 20px auto !important;
+          left: initial !important;
+          transform: initial !important;
+        }
       }
 
       /* Mobile responsive adjustments */
@@ -318,19 +338,53 @@
           overflow-y: hidden;
         }
         
-        /* Ensure app fits in viewport without clipping */
+        /* Disable expensive animations on mobile for performance */
+        *, *::before, *::after {
+          animation-duration: 0s !important;
+          animation-delay: 0s !important;
+          transition-duration: 0s !important;
+          transition-delay: 0s !important;
+        }
+        
+        /* Keep only essential animations with reduced complexity */
+        .score-display {
+          animation: none !important;
+        }
+        
+        /* Disable starfield animation on mobile */
+        #app {
+          animation: none !important;
+          background: linear-gradient(180deg, #000428 0%, #004e92 100%) !important;
+        }
+        
+        /* Disable particle animations */
+        .particle {
+          animation: none !important;
+        }
+        
+        /* Disable explosion animations - use simple fade */
+        div[style*="radial-gradient(circle, #ffff00"] {
+          animation: none !important;
+          transition: opacity 0.3s ease !important;
+        }
+        
+        /* Ensure app container centers content properly */
         #app {
           min-height: 100vh;
           height: 100vh;
           overflow: hidden;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
         }
-        
+
         /* Mobile HUD - make header more compact */
         div[style*="justify-content: space-between"] {
           padding: 8px 15px !important;
           flex-direction: column !important;
           gap: 8px !important;
           min-height: auto !important;
+          width: 100% !important;
         }
         
         /* Compact HUD layout for mobile */
@@ -368,7 +422,7 @@
           font-size: 10px !important;
         }
 
-        /* Mobile game area positioning - leave more space for header */
+        /* Mobile game area positioning - use transform with proper container */
         .game-area {
           border-width: 2px !important;
           width: 800px !important;
@@ -376,33 +430,32 @@
           display: block !important;
           overflow: hidden !important;
           position: relative !important;
-          margin: 5px auto !important;
-          transform-origin: top center !important;
+          margin: 5px 0 !important;
+          transform-origin: center center !important;
+          will-change: transform !important;
+          left: 50% !important;
+          transform: translateX(-50%) !important;
         }
 
-        /* Responsive zoom levels with better scaling */
+        /* Use transform scale with translateX to maintain centering */
         @media (max-width: 400px) {
           .game-area { 
-            zoom: 0.35 !important;
-            margin-top: 5px !important;
+            transform: translateX(-50%) scale(0.4) !important;
           }
         }
         @media (min-width: 401px) and (max-width: 500px) {
           .game-area { 
-            zoom: 0.42 !important;
-            margin-top: 8px !important;
+            transform: translateX(-50%) scale(0.48) !important;
           }
         }
         @media (min-width: 501px) and (max-width: 600px) {
           .game-area { 
-            zoom: 0.52 !important;
-            margin-top: 10px !important;
+            transform: translateX(-50%) scale(0.56) !important;
           }
         }
         @media (min-width: 601px) and (max-width: 767px) {
           .game-area { 
-            zoom: 0.62 !important;
-            margin-top: 12px !important;
+            transform: translateX(-50%) scale(0.65) !important;
           }
         }
 
@@ -427,6 +480,22 @@
           width: 85px;
           height: 85px;
           font-size: 14px;
+        }
+        
+        /* Performance optimizations for mobile */
+        * {
+          backface-visibility: hidden !important;
+          transform-style: flat !important;
+        }
+        
+        /* Reduce visual complexity on mobile */
+        .game-area::before {
+          display: none !important; /* Remove grid overlay */
+        }
+        
+        /* Simplify box-shadows for performance */
+        .game-area {
+          box-shadow: 0 0 10px #00ffff !important;
         }
       }
     </style>

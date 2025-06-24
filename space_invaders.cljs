@@ -44,7 +44,10 @@
     :ufo-spawn-interval 1200 ;; Frames between UFO spawns (~20 seconds at 60fps)
     :bullets-fired-this-level 0
     :keys-pressed #{}
-    :barriers []}))
+    :barriers []
+    :is-mobile (< (.-innerWidth js/window) 768) ;; Mobile detection
+    :frame-skip 0 ;; Mobile frame skipping for performance
+    :reduced-effects false})) ;; Mobile reduced effects mode
 
 ;; Rolling debug buffer
 (defonce debug-buffer (atom []))
@@ -198,6 +201,23 @@
    :vy (- (rand 4) 2)
    :life 30
    :id (random-uuid)})
+
+(defn create-mobile-particle [x y]
+  "Lighter particle for mobile performance"
+  {:x x
+   :y y
+   :vx (- (rand 2) 1) ;; Reduced movement
+   :vy (- (rand 2) 1)
+   :life 15 ;; Shorter life
+   :id (random-uuid)})
+
+(defn create-particles-for-platform [x y count]
+  "Create appropriate number of particles based on platform"
+  (let [state @game-state
+        is-mobile (:is-mobile state)
+        particle-count (if is-mobile (max 1 (/ count 3)) count) ;; 1/3 particles on mobile
+        create-fn (if is-mobile create-mobile-particle create-particle)]
+    (repeatedly particle-count #(create-fn x y))))
 
 (defn create-explosion [x y]
   {:x x :y y :frame 0 :id (random-uuid)})
@@ -663,7 +683,7 @@
                      (remove #{hit-invader} remaining-invaders)
                      surviving-bullets ;; Don't add this bullet to surviving
                      (conj new-explosions (create-explosion (:x hit-invader) (:y hit-invader)))
-                     (concat new-particles (repeatedly 8 #(create-particle (:x hit-invader) (:y hit-invader))))
+                     (concat new-particles (create-particles-for-platform (:x hit-invader) (:y hit-invader) 8))
                      (+ score-increase invader-score))) ; Use authentic tiered scoring
             ;; Bullet missed invaders - keep bullet
             (recur (rest remaining-bullets)
@@ -690,7 +710,7 @@
               (update :bullets #(remove #{hit-bullet} %)) ;; Remove bullet
               (update :score + ufo-score) ;; Add score
               (update :explosions conj (create-explosion (:x ufo) (:y ufo))) ;; Explosion
-              (update :particles concat (repeatedly 12 #(create-particle (+ (:x ufo) 20) (+ (:y ufo) 10)))) ;; More particles
+              (update :particles concat (create-particles-for-platform (+ (:x ufo) 20) (+ (:y ufo) 10) 12)) ;; More particles
               add-screen-shake))
         state))
     state))
@@ -867,31 +887,66 @@
 (defn update-game [state]
   (if (:game-over state)
     state
-    (-> state
-        (update :frame inc)
-        ;; Play heartbeat audio on rhythm
-        (#(do (when (should-play-heartbeat? %)
-                (play-heartbeat-sound))
-              %))
-        process-continuous-movement
-        move-bullets
-        move-invader-bullets
-        move-invaders
-        fire-invader-bullet
-        spawn-ufo ;; UFO: Check if UFO should spawn
-        move-ufo ;; UFO: Move existing UFO
-        process-barrier-collisions ;; BARRIERS: Process bullet-barrier collisions first
-        check-bullet-invader-collisions ;; Player bullets vs invaders  
-        check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
-        check-invader-bullet-player-collisions ;; Invader bullets vs player
-        update-explosions
-        update-particles
-        check-level-completion
-        check-player-collision
-        ;; Remove screen shake after a few frames
-        (#(if (and (:screen-shake %) (> (mod (:frame %) 10) 5))
-            (remove-screen-shake %)
-            %)))))
+    (let [is-mobile (:is-mobile state)]
+      (if is-mobile
+        ;; Mobile: Use frame skipping for performance
+        (let [frame-skip (:frame-skip state)
+              should-skip-frame (< frame-skip 2)] ;; Skip 2 out of 3 frames on mobile
+          (if should-skip-frame
+            ;; Mobile: Skip heavy processing, just update frame counters
+            (-> state
+                (update :frame inc)
+                (update :frame-skip inc))
+            ;; Mobile: Full frame processing every 3rd frame
+            (-> state
+                (update :frame inc)
+                (assoc :frame-skip 0) ;; Reset skip counter
+                ;; Play heartbeat audio on rhythm (less frequent on mobile)
+                (#(do (when (and (should-play-heartbeat? %)
+                                 (= (mod (:frame %) 3) 0)) ;; Less frequent on mobile
+                        (play-heartbeat-sound))
+                      %))
+                process-continuous-movement
+                move-bullets
+                move-invader-bullets
+                move-invaders
+                fire-invader-bullet
+                spawn-ufo ;; UFO: Check if UFO should spawn
+                move-ufo ;; UFO: Move existing UFO
+                process-barrier-collisions ;; BARRIERS: Process bullet-barrier collisions first
+                check-bullet-invader-collisions ;; Player bullets vs invaders  
+                check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
+                check-invader-bullet-player-collisions ;; Invader bullets vs player
+                update-explosions
+                update-particles
+                check-level-completion
+                check-player-collision)))
+        ;; Desktop: Full 60 FPS performance - no optimizations
+        (-> state
+            (update :frame inc)
+            ;; Play heartbeat audio on rhythm
+            (#(do (when (should-play-heartbeat? %)
+                    (play-heartbeat-sound))
+                  %))
+            process-continuous-movement
+            move-bullets
+            move-invader-bullets
+            move-invaders
+            fire-invader-bullet
+            spawn-ufo ;; UFO: Check if UFO should spawn
+            move-ufo ;; UFO: Move existing UFO
+            process-barrier-collisions ;; BARRIERS: Process bullet-barrier collisions first
+            check-bullet-invader-collisions ;; Player bullets vs invaders  
+            check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
+            check-invader-bullet-player-collisions ;; Invader bullets vs player
+            update-explosions
+            update-particles
+            check-level-completion
+            check-player-collision
+            ;; Remove screen shake after a few frames (enabled on desktop)
+            (#(if (and (:screen-shake %) (> (mod (:frame %) 10) 5))
+                (remove-screen-shake %)
+                %)))))))
 
 ;; Game loop
 (defonce game-loop-id (atom nil))
@@ -904,36 +959,42 @@
   (debug-log "🚀 AUTHENTIC SPACE INVADERS - 5×11 Formation with Tiered Scoring!")
   (debug-log "💯 Features: 55 invaders, 10/20/30 point scoring, UFO mystery ships, destructible barriers")
   (debug-log "🎵 NEW: Authentic heartbeat audio that speeds up as invaders are destroyed!")
-  (init-audio) ;; Initialize sound
-  (reset! game-state {:player {:x 380 :y 550}
-                      :bullets []
-                      :invader-bullets []
-                      :invaders (initialize-invaders 1)
-                      :explosions []
-                      :particles []
-                      :score 0
-                      :lives 3
-                      :level 1
-                      :game-over false
-                      :screen-shake false
-                      :frame 0
-                      :next-bullet-id 0
-                      :next-invader-bullet-id 0
-                      :last-fire-frame -10
-                      :invader-direction 1
-                      :invader-move-timer 0
-                      :invader-drop-distance 20
-                      :invader-shoot-timer 0
-                      :invader-shoot-interval 120
-                      :ufo nil ;; UFO mystery ship
-                      :ufo-spawn-timer 0 ;; UFO spawn timer
-                      :ufo-spawn-interval 1200 ;; UFO spawn interval
-                      :bullets-fired-this-level 0
-                      :barriers (initialize-barriers)
-                      :keys-pressed #{}})
-  (when @game-loop-id (js/cancelAnimationFrame @game-loop-id))
-  (setup-global-key-listeners)
-  (game-loop))
+  (let [is-mobile (< (.-innerWidth js/window) 768)]
+    (when is-mobile
+      (debug-log "📱 MOBILE MODE: Performance optimizations enabled"))
+    (init-audio) ;; Initialize sound
+    (reset! game-state {:player {:x 380 :y 550}
+                        :bullets []
+                        :invader-bullets []
+                        :invaders (initialize-invaders 1)
+                        :explosions []
+                        :particles []
+                        :score 0
+                        :lives 3
+                        :level 1
+                        :game-over false
+                        :screen-shake false
+                        :frame 0
+                        :next-bullet-id 0
+                        :next-invader-bullet-id 0
+                        :last-fire-frame -10
+                        :invader-direction 1
+                        :invader-move-timer 0
+                        :invader-drop-distance 20
+                        :invader-shoot-timer 0
+                        :invader-shoot-interval 120
+                        :ufo nil ;; UFO mystery ship
+                        :ufo-spawn-timer 0 ;; UFO spawn timer
+                        :ufo-spawn-interval 1200 ;; UFO spawn interval
+                        :bullets-fired-this-level 0
+                        :barriers (initialize-barriers)
+                        :keys-pressed #{}
+                        :is-mobile is-mobile ;; Set mobile detection
+                        :frame-skip 0 ;; Mobile frame skipping
+                        :reduced-effects is-mobile}) ;; Enable reduced effects on mobile
+    (when @game-loop-id (js/cancelAnimationFrame @game-loop-id))
+    (setup-global-key-listeners)
+    (game-loop)))
 
 ;; Enhanced Visual Components
 ;; Enhanced Components with visual improvements
