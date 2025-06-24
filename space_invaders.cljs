@@ -1490,36 +1490,44 @@
         [:div {:class "touch-button"
                :on-touch-start (fn [e]
                                  (.preventDefault e)
+                                 (.stopPropagation e)
                                  (handle-key-down "ArrowLeft")
                                  (debug-log "Touch LEFT start"))
                :on-touch-end (fn [e]
                                (.preventDefault e)
+                               (.stopPropagation e)
                                (handle-key-up "ArrowLeft")
                                (debug-log "Touch LEFT end"))
                :on-mouse-down (fn [e]
                                 (.preventDefault e)
+                                (.stopPropagation e)
                                 (handle-key-down "ArrowLeft")
                                 (debug-log "Mouse LEFT start"))
                :on-mouse-up (fn [e]
                               (.preventDefault e)
+                              (.stopPropagation e)
                               (handle-key-up "ArrowLeft")
                               (debug-log "Mouse LEFT end"))}
          "←"]
         [:div {:class "touch-button"
                :on-touch-start (fn [e]
                                  (.preventDefault e)
+                                 (.stopPropagation e)
                                  (handle-key-down "ArrowRight")
                                  (debug-log "Touch RIGHT start"))
                :on-touch-end (fn [e]
                                (.preventDefault e)
+                               (.stopPropagation e)
                                (handle-key-up "ArrowRight")
                                (debug-log "Touch RIGHT end"))
                :on-mouse-down (fn [e]
                                 (.preventDefault e)
+                                (.stopPropagation e)
                                 (handle-key-down "ArrowRight")
                                 (debug-log "Mouse RIGHT start"))
                :on-mouse-up (fn [e]
                               (.preventDefault e)
+                              (.stopPropagation e)
                               (handle-key-up "ArrowRight")
                               (debug-log "Mouse RIGHT end"))}
          "→"]]
@@ -1529,10 +1537,12 @@
         [:div {:class "touch-button"
                :on-touch-start (fn [e]
                                  (.preventDefault e)
+                                 (.stopPropagation e)
                                  (swap! game-state fire-bullet)
                                  (debug-log "Touch FIRE"))
                :on-click (fn [e]
                            (.preventDefault e)
+                           (.stopPropagation e)
                            (swap! game-state fire-bullet)
                            (debug-log "Click FIRE"))}
          "FIRE"]]]]]))

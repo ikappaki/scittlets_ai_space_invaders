@@ -265,6 +265,13 @@
         padding: 0 20px;
         z-index: 1000;
         pointer-events: none;
+        /* Prevent any text selection in control area */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
       }
 
       .touch-button {
@@ -284,6 +291,22 @@
         transition: all 0.2s ease;
         pointer-events: all;
         box-shadow: 0 0 15px rgba(0,255,255,0.5);
+        /* Prevent text selection and magnifier */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        outline: none;
+        cursor: pointer;
+        /* Prevent zoom and text selection */
+        -webkit-text-size-adjust: none;
+        -moz-text-size-adjust: none;
+        -ms-text-size-adjust: none;
+        text-size-adjust: none;
+        /* Disable long press context menu */
+        -webkit-context-menu: none;
+        context-menu: none;
       }
 
       .touch-button:active {
@@ -303,8 +326,8 @@
         font-size: 18px;
       }
 
-      /* Hide mobile controls on desktop */
-      @media (min-width: 768px) {
+      /* Hide mobile controls on desktop only (show on tablets and phones) */
+      @media (min-width: 1024px) {
         .mobile-controls {
           display: none;
         }
@@ -327,6 +350,75 @@
           margin: 20px auto !important;
           left: initial !important;
           transform: initial !important;
+        }
+      }
+
+      /* Tablet adjustments (768px to 1023px) - mobile optimizations but larger scale */
+      @media (min-width: 768px) and (max-width: 1023px) {
+        /* Show mobile controls on tablets */
+        .mobile-controls {
+          display: flex !important;
+        }
+        
+        /* Apply mobile optimizations for performance */
+        *, *::before, *::after {
+          animation-duration: 0s !important;
+          animation-delay: 0s !important;
+          transition-duration: 0s !important;
+          transition-delay: 0s !important;
+        }
+        
+        /* Disable starfield on tablets for performance */
+        #app {
+          animation: none !important;
+          background: linear-gradient(180deg, #000428 0%, #004e92 100%) !important;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+        }
+        
+        /* Tablet game scaling - larger than phones */
+        .game-area {
+          border-width: 2px !important;
+          width: 800px !important;
+          height: 600px !important;
+          display: block !important;
+          overflow: hidden !important;
+          position: relative !important;
+          margin: 10px 0 !important;
+          transform-origin: center center !important;
+          will-change: transform !important;
+          left: 50% !important;
+          transform: translateX(-50%) scale(0.8) !important;
+        }
+        
+        /* Larger touch controls for tablets */
+        .touch-button {
+          width: 90px;
+          height: 90px;
+          font-size: 28px;
+        }
+
+        .shoot-control .touch-button {
+          width: 110px;
+          height: 110px;
+          font-size: 20px;
+        }
+        
+        /* Tablet HUD adjustments */
+        div[style*="justify-content: space-between"] {
+          padding: 12px 20px !important;
+          flex-direction: row !important;
+          gap: 15px !important;
+          width: 100% !important;
+        }
+        
+        div[style*="justify-content: space-between"] > div:first-child h1 {
+          font-size: 24px !important;
+        }
+        
+        div[style*="justify-content: space-between"] > div:first-child > div {
+          font-size: 12px !important;
         }
       }
 
