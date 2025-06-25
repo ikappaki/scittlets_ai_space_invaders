@@ -1225,7 +1225,7 @@
 (defn app []
   (let [state @game-state
         shake-class (when (:screen-shake state) "screen-shake")]
-    [:div {:style {:background-color "#000" :min-height "100vh" :padding "0"}}
+    [:div {:style {:background-color "transparent" :min-height "auto" :padding "0"}}
      [:div {:class shake-class
             :style {:transition "transform 0.1s ease"}}
 

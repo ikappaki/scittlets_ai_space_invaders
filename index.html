@@ -399,6 +399,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: flex-start;
+        /* Remove background that could extend beyond content */
+        background: transparent;
       }
       
       /* Game content container that scales */
@@ -406,27 +408,31 @@
         transform: scale(0.45);
         transform-origin: center top;
         width: 800px;
-        height: 700px;
+        height: auto; /* Let content determine height */
         margin-top: 10px;
+        /* Remove any background that extends beyond game content */
+        background: transparent;
       }
       
-      /* Landscape orientation optimization */
+      /* Landscape orientation optimization - aggressive scaling for mobile */
       @media (orientation: landscape) and (max-height: 500px) {
         #app > div {
-          transform: scale(0.35); /* Smaller scale for landscape */
-          margin-top: 5px;
+          transform: scale(0.4) !important; /* Reduce to fit in limited height */
+          margin-top: 0px !important; /* Remove top margin to maximize space */
         }
         
         #app {
-          justify-content: center; /* Center vertically in landscape */
+          justify-content: flex-start !important; /* Align to top instead of center */
+          padding-top: 0px !important; /* Remove padding to maximize space */
+          padding-bottom: 0px !important; /* Remove bottom padding too */
         }
       }
       
-      /* Landscape on larger devices */
+      /* Landscape on larger devices with more height */
       @media (orientation: landscape) and (min-height: 500px) and (max-width: 1023px) {
         #app > div {
-          transform: scale(0.6); /* Better scale for larger landscape screens */
-          margin-top: 10px;
+          transform: scale(0.65) !important; /* Larger scale for devices with more height */
+          margin-top: 5px !important;
         }
       }
 
@@ -611,6 +617,45 @@
           left: auto !important;
         }
       }
+      
+      /* Extra compact header for landscape mobile with limited height */
+      @media (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+        .mobile-header {
+          padding: 4px 10px !important; /* Even more compact */
+          min-height: auto !important;
+        }
+        
+        .mobile-header h1 {
+          font-size: 14px !important; /* Smaller title */
+          line-height: 1 !important;
+        }
+        
+        .mobile-header .subtitle {
+          font-size: 6px !important; /* Tiny subtitle */
+          margin-top: 1px !important;
+        }
+        
+        .mobile-stats {
+          font-size: 12px !important; /* Smaller stats */
+          gap: 10px !important; /* Tighter spacing */
+        }
+        
+        .mobile-lives span {
+          font-size: 10px !important;
+          margin-right: 3px !important;
+        }
+        
+        .mobile-lives div {
+          width: 16px !important;
+          height: 12px !important;
+          margin-left: 1px !important;
+        }
+        
+        /* Reduce game area margins in landscape */
+        .game-area {
+          margin: 10px auto !important; /* Reduce from 20px to 10px */
+        }
+      }
 
       /* ===== PROGRESSIVE ENHANCEMENT BREAKPOINTS ===== */
       /* Mobile-first with em-based breakpoints for accessibility */
@@ -637,22 +682,22 @@
         }
       }
       
-      /* Landscape orientation scaling - width-based since height is limited */
+      /* Landscape orientation scaling - aggressive scaling for limited height */
       @media (min-width: 30em) and (orientation: landscape) and (max-height: 500px) { /* 480px+ width */
         #app > div {
-          transform: scale(0.4);
+          transform: scale(0.42) !important; /* Slightly larger for wider screens */
         }
       }
       
       @media (min-width: 40em) and (orientation: landscape) and (max-height: 500px) { /* 640px+ width */
         #app > div {
-          transform: scale(0.45);
+          transform: scale(0.45) !important; /* Progressive increase for wider screens */
         }
       }
       
       @media (min-width: 50em) and (orientation: landscape) and (max-height: 500px) { /* 800px+ width */
         #app > div {
-          transform: scale(0.5);
+          transform: scale(0.48) !important; /* Maximum for very wide but short screens */
         }
       }
       
