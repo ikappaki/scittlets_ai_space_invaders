@@ -818,6 +818,9 @@
   "Process continuous movement while keys are held down"
   (let [keys (:keys-pressed state)
         move-speed 4] ; Pixels per frame for continuous movement
+    ;; Debug: Log active keys every 60 frames (1 second)
+    (when (and (not (empty? keys)) (= (mod (:frame state) 60) 0))
+      (debug-log (str "🎮 CONTINUOUS MOVEMENT: Active keys: " keys " | Player X: " (get-in state [:player :x]))))
     (cond
       (contains? keys "ArrowLeft")
       (move-player state :left-continuous move-speed)
@@ -1227,7 +1230,8 @@
             :style {:transition "transform 0.1s ease"}}
 
       ;; Enhanced HUD
-      [:div {:style {:display "flex"
+      [:div {:class "mobile-header"
+             :style {:display "flex"
                      :justify-content "space-between"
                      :align-items "center"
                      :padding "15px 30px"
@@ -1246,7 +1250,8 @@
                       :white-space "nowrap"
                       :line-height "1.1"}}
          "SPACE INVADERS"]
-        [:div {:style {:color "#ffaa00"
+        [:div {:class "subtitle"
+               :style {:color "#ffaa00"
                        :font-size "12px"
                        :font-weight "bold"
                        :text-shadow "0 0 8px #ffaa00"
@@ -1293,15 +1298,18 @@
                       :padding-bottom "1px"}}
           "Clojure MCP"]]]
 
-       [:div {:style {:display "flex" :align-items "center" :gap "30px"}}
+       [:div {:class "mobile-stats"
+              :style {:display "flex" :align-items "center" :gap "30px"}}
         [:div {:style {:color "#ffff00" :font-size "18px" :font-weight "bold"}}
          "LEVEL " (:level state)]
         [:div {:class "score-display"
                :style {:color "#00ff00" :font-size "20px" :font-weight "bold"}}
          "SCORE: " (:score state)]
-        [lives-display (:lives state)]
+        [:div {:class "mobile-lives"}
+         [lives-display (:lives state)]]
         ;; Audio test button
-        [:div {:style {:display "flex" :gap "5px"}}
+        [:div {:class "audio-controls"
+               :style {:display "flex" :gap "5px"}}
          [:button {:style {:padding "5px 10px"
                            :font-size "12px"
                            :background "#444"
@@ -1481,75 +1489,78 @@
        ;; Render particles
        (for [particle (:particles state)]
          ^{:key (:id particle)}
-         [particle-component particle])]
-
-      ;; Mobile Touch Controls (added at the end, outside game area)
-      [:div {:class "mobile-controls"}
-       ;; Left side movement controls
-       [:div {:class "movement-controls"}
-        [:div {:class "touch-button"
-               :on-touch-start (fn [e]
-                                 (.preventDefault e)
-                                 (.stopPropagation e)
-                                 (handle-key-down "ArrowLeft")
-                                 (debug-log "Touch LEFT start"))
-               :on-touch-end (fn [e]
-                               (.preventDefault e)
-                               (.stopPropagation e)
-                               (handle-key-up "ArrowLeft")
-                               (debug-log "Touch LEFT end"))
-               :on-mouse-down (fn [e]
-                                (.preventDefault e)
-                                (.stopPropagation e)
-                                (handle-key-down "ArrowLeft")
-                                (debug-log "Mouse LEFT start"))
-               :on-mouse-up (fn [e]
-                              (.preventDefault e)
-                              (.stopPropagation e)
-                              (handle-key-up "ArrowLeft")
-                              (debug-log "Mouse LEFT end"))}
-         "←"]
-        [:div {:class "touch-button"
-               :on-touch-start (fn [e]
-                                 (.preventDefault e)
-                                 (.stopPropagation e)
-                                 (handle-key-down "ArrowRight")
-                                 (debug-log "Touch RIGHT start"))
-               :on-touch-end (fn [e]
-                               (.preventDefault e)
-                               (.stopPropagation e)
-                               (handle-key-up "ArrowRight")
-                               (debug-log "Touch RIGHT end"))
-               :on-mouse-down (fn [e]
-                                (.preventDefault e)
-                                (.stopPropagation e)
-                                (handle-key-down "ArrowRight")
-                                (debug-log "Mouse RIGHT start"))
-               :on-mouse-up (fn [e]
-                              (.preventDefault e)
-                              (.stopPropagation e)
-                              (handle-key-up "ArrowRight")
-                              (debug-log "Mouse RIGHT end"))}
-         "→"]]
-
-       ;; Right side fire control
-       [:div {:class "shoot-control"}
-        [:div {:class "touch-button"
-               :on-touch-start (fn [e]
-                                 (.preventDefault e)
-                                 (.stopPropagation e)
-                                 (swap! game-state fire-bullet)
-                                 (debug-log "Touch FIRE"))
-               :on-click (fn [e]
-                           (.preventDefault e)
-                           (.stopPropagation e)
-                           (swap! game-state fire-bullet)
-                           (debug-log "Click FIRE"))}
-         "FIRE"]]]]]))
+         [particle-component particle])]]]))
 
 ;; Init
+ ;; Mobile Touch Controls Component (rendered separately to avoid scaling)
+(defn mobile-controls []
+  [:div {:class "mobile-controls"}
+   ;; Left side movement controls
+   [:div {:class "movement-controls"}
+    [:div {:class "touch-button"
+           :on-touch-start (fn [e]
+                             (.preventDefault e)
+                             (.stopPropagation e)
+                             (handle-key-down "ArrowLeft")
+                             (debug-log "Touch LEFT start"))
+           :on-touch-end (fn [e]
+                           (.preventDefault e)
+                           (.stopPropagation e)
+                           (handle-key-up "ArrowLeft")
+                           (debug-log "Touch LEFT end"))
+           :on-mouse-down (fn [e]
+                            (.preventDefault e)
+                            (.stopPropagation e)
+                            (handle-key-down "ArrowLeft")
+                            (debug-log "Mouse LEFT start"))
+           :on-mouse-up (fn [e]
+                          (.preventDefault e)
+                          (.stopPropagation e)
+                          (handle-key-up "ArrowLeft")
+                          (debug-log "Mouse LEFT end"))}
+     "←"]
+    [:div {:class "touch-button"
+           :on-touch-start (fn [e]
+                             (.preventDefault e)
+                             (.stopPropagation e)
+                             (handle-key-down "ArrowRight")
+                             (debug-log "Touch RIGHT start"))
+           :on-touch-end (fn [e]
+                           (.preventDefault e)
+                           (.stopPropagation e)
+                           (handle-key-up "ArrowRight")
+                           (debug-log "Touch RIGHT end"))
+           :on-mouse-down (fn [e]
+                            (.preventDefault e)
+                            (.stopPropagation e)
+                            (handle-key-down "ArrowRight")
+                            (debug-log "Mouse RIGHT start"))
+           :on-mouse-up (fn [e]
+                          (.preventDefault e)
+                          (.stopPropagation e)
+                          (handle-key-up "ArrowRight")
+                          (debug-log "Mouse RIGHT end"))}
+     "→"]]
+
+   ;; Right side fire control
+   [:div {:class "shoot-control"}
+    [:div {:class "touch-button"
+           :on-touch-start (fn [e]
+                             (.preventDefault e)
+                             (.stopPropagation e)
+                             (swap! game-state fire-bullet)
+                             (debug-log "Touch FIRE"))
+           :on-click (fn [e]
+                       (.preventDefault e)
+                       (.stopPropagation e)
+                       (swap! game-state fire-bullet)
+                       (debug-log "Click FIRE"))}
+     "FIRE"]]])
+
 (defn init []
-  (dom/render [app] (.getElementById js/document "app")))
+  (dom/render [app] (.getElementById js/document "app"))
+  ;; Render mobile controls separately to avoid scaling
+  (dom/render [mobile-controls] (.getElementById js/document "mobile-controls")))
 
 (init)
 (start-game)

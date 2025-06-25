@@ -3,7 +3,7 @@
   <head>
     <title>Space Invaders - Scittlet Demo</title>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
     <script src="https://cdn.jsdelivr.net/npm/scittle@0.7.23/dist/scittle.min.js" type="application/javascript"></script>
 
@@ -257,9 +257,9 @@
       /* Mobile Touch Controls */
       .mobile-controls {
         position: fixed;
-        bottom: 20px;
-        left: 0;
-        right: 0;
+        bottom: calc(20px + env(safe-area-inset-bottom, 0)); /* Account for home indicators */
+        left: env(safe-area-inset-left, 0);
+        right: env(safe-area-inset-right, 0);
         display: flex;
         justify-content: space-between;
         padding: 0 20px;
@@ -272,6 +272,55 @@
         user-select: none;
         -webkit-touch-callout: none;
         -webkit-tap-highlight-color: transparent;
+      }
+      
+      /* Landscape touch controls - move closer to screen edges */
+      @media (orientation: landscape) and (max-height: 500px) {
+        .mobile-controls {
+          /* Reset the flex layout for landscape */
+          display: block;
+          bottom: auto;
+          left: 0;
+          right: 0;
+          padding: 0;
+          /* Controls positioned relative to viewport, not scaled game */
+          position: fixed;
+          width: 100vw;
+          height: 100vh;
+          pointer-events: none;
+        }
+        
+        .movement-controls {
+          /* Move to far left edge of actual viewport */
+          position: fixed;
+          left: calc(10px + env(safe-area-inset-left, 0));
+          top: 50%;
+          transform: translateY(-50%);
+          flex-direction: column;
+          gap: 8px;
+          pointer-events: all;
+        }
+        
+        .shoot-control {
+          /* Move to far right edge of actual viewport */
+          position: fixed;
+          right: calc(10px + env(safe-area-inset-right, 0));
+          top: 50%;
+          transform: translateY(-50%);
+          pointer-events: all;
+        }
+        
+        .touch-button {
+          width: 55px;
+          height: 55px;
+          font-size: 18px;
+        }
+        
+        .shoot-control .touch-button {
+          width: 65px;
+          height: 65px;
+          font-size: 14px;
+        }
       }
 
       .touch-button {
@@ -326,41 +375,69 @@
         font-size: 18px;
       }
 
-      /* Hide mobile controls on desktop only (show on tablets and phones) */
-      @media (min-width: 1024px) {
-        .mobile-controls {
-          display: none;
+      /* ===== RESEARCH-BASED RESPONSIVE DESIGN ===== */
+      /* Industry-standard mobile-first approach with progressive enhancement */
+      /* Uses transform scale for universal browser compatibility */
+      
+      /* Base app styling - mobile-first foundation */
+      #app {
+        /* Mobile: Scale to fit screen properly */
+        width: 100vw;
+        height: 100vh;
+        min-height: 100vh;
+        overflow: hidden;
+        will-change: transform;
+        transition: transform 0.3s ease;
+        /* Safe area handling for modern devices with notches */
+        padding-top: env(safe-area-inset-top, 0);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        padding-left: env(safe-area-inset-left, 0);
+        padding-right: env(safe-area-inset-right, 0);
+        box-sizing: border-box;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+      }
+      
+      /* Game content container that scales */
+      #app > div {
+        transform: scale(0.45);
+        transform-origin: center top;
+        width: 800px;
+        height: 700px;
+        margin-top: 10px;
+      }
+      
+      /* Landscape orientation optimization */
+      @media (orientation: landscape) and (max-height: 500px) {
+        #app > div {
+          transform: scale(0.35); /* Smaller scale for landscape */
+          margin-top: 5px;
         }
         
-        /* Ensure desktop keeps all animations and effects */
         #app {
-          animation: starfield 20s linear infinite !important;
-          display: block !important;
-          flex-direction: initial !important;
-          align-items: initial !important;
+          justify-content: center; /* Center vertically in landscape */
         }
-        
-        /* Desktop retains full visual effects */
-        .score-display {
-          animation: fadeInOut 2s infinite !important;
-        }
-        
-        /* Desktop game area positioning - original layout */
-        .game-area {
-          margin: 20px auto !important;
-          left: initial !important;
-          transform: initial !important;
+      }
+      
+      /* Landscape on larger devices */
+      @media (orientation: landscape) and (min-height: 500px) and (max-width: 1023px) {
+        #app > div {
+          transform: scale(0.6); /* Better scale for larger landscape screens */
+          margin-top: 10px;
         }
       }
 
-      /* Tablet adjustments (768px to 1023px) - mobile optimizations but larger scale */
-      @media (min-width: 768px) and (max-width: 1023px) {
-        /* Show mobile controls on tablets */
+      /* Touch device optimizations - applies to mobile and tablet */
+      @media (max-width: 63.999em) { /* Below 1024px */
+        /* Show touch controls */
         .mobile-controls {
           display: flex !important;
         }
         
-        /* Apply mobile optimizations for performance */
+        /* Performance optimizations for touch devices */
         *, *::before, *::after {
           animation-duration: 0s !important;
           animation-delay: 0s !important;
@@ -368,226 +445,393 @@
           transition-delay: 0s !important;
         }
         
-        /* Disable starfield on tablets for performance */
+        /* Disable resource-intensive effects */
         #app {
           animation: none !important;
           background: linear-gradient(180deg, #000428 0%, #004e92 100%) !important;
-          display: flex !important;
-          flex-direction: column !important;
-          align-items: center !important;
         }
         
-        /* Tablet game scaling - larger than phones */
+        /* Hide debug panels on touch devices */
+        div[style*="position: absolute"][style*="top: 80px"] {
+          display: none !important;
+        }
+        
+        /* Reset game area to normal dimensions - scaling handled by parent */
         .game-area {
-          border-width: 2px !important;
           width: 800px !important;
           height: 600px !important;
-          display: block !important;
-          overflow: hidden !important;
+          margin: 20px auto !important;
+          border-width: 4px !important;
           position: relative !important;
-          margin: 10px 0 !important;
-          transform-origin: center center !important;
-          will-change: transform !important;
-          left: 50% !important;
-          transform: translateX(-50%) scale(0.8) !important;
+          overflow: hidden !important;
+          transform: none !important;
+          left: auto !important;
         }
         
-        /* Larger touch controls for tablets */
-        .touch-button {
-          width: 90px;
-          height: 90px;
-          font-size: 28px;
-        }
-
-        .shoot-control .touch-button {
-          width: 110px;
-          height: 110px;
-          font-size: 20px;
-        }
-        
-        /* Tablet HUD adjustments */
-        div[style*="justify-content: space-between"] {
-          padding: 12px 20px !important;
-          flex-direction: row !important;
-          gap: 15px !important;
-          width: 100% !important;
-        }
-        
-        div[style*="justify-content: space-between"] > div:first-child h1 {
-          font-size: 24px !important;
-        }
-        
-        div[style*="justify-content: space-between"] > div:first-child > div {
+        /* Compact header for mobile devices */
+        .mobile-header {
+          padding: 8px 15px !important;
           font-size: 12px !important;
         }
-      }
-
-      /* Mobile responsive adjustments */
-      @media (max-width: 767px) {
-        body {
-          font-size: 14px;
-          overflow-x: hidden;
-          overflow-y: hidden;
-        }
         
-        /* Disable expensive animations on mobile for performance */
-        *, *::before, *::after {
-          animation-duration: 0s !important;
-          animation-delay: 0s !important;
-          transition-duration: 0s !important;
-          transition-delay: 0s !important;
-        }
-        
-        /* Keep only essential animations with reduced complexity */
-        .score-display {
-          animation: none !important;
-        }
-        
-        /* Disable starfield animation on mobile */
-        #app {
-          animation: none !important;
-          background: linear-gradient(180deg, #000428 0%, #004e92 100%) !important;
-        }
-        
-        /* Disable particle animations */
-        .particle {
-          animation: none !important;
-        }
-        
-        /* Disable explosion animations - use simple fade */
-        div[style*="radial-gradient(circle, #ffff00"] {
-          animation: none !important;
-          transition: opacity 0.3s ease !important;
-        }
-        
-        /* Ensure app container centers content properly */
-        #app {
-          min-height: 100vh;
-          height: 100vh;
-          overflow: hidden;
-          display: flex !important;
-          flex-direction: column !important;
-          align-items: center !important;
-        }
-
-        /* Mobile HUD - make header more compact */
-        div[style*="justify-content: space-between"] {
-          padding: 8px 15px !important;
-          flex-direction: column !important;
-          gap: 8px !important;
-          min-height: auto !important;
-          width: 100% !important;
-        }
-        
-        /* Compact HUD layout for mobile */
-        div[style*="justify-content: space-between"] > div:first-child {
-          min-width: auto !important;
-          align-items: center !important;
-        }
-        
-        div[style*="justify-content: space-between"] > div:first-child h1 {
+        .mobile-header h1 {
           font-size: 18px !important;
           margin: 0 !important;
           line-height: 1 !important;
         }
         
-        div[style*="justify-content: space-between"] > div:first-child > div {
-          font-size: 9px !important;
+        .mobile-header .subtitle {
+          font-size: 8px !important;
           margin-top: 2px !important;
-          text-align: center !important;
-        }
-        
-        /* Compact score area */
-        div[style*="gap: 30px"] {
-          gap: 8px !important;
-          flex-wrap: wrap !important;
-          justify-content: center !important;
-        }
-        
-        div[style*="gap: 30px"] > div {
-          font-size: 11px !important;
-        }
-        
-        /* Compact audio test buttons */
-        div[style*="gap: 5px"] button {
-          padding: 3px 6px !important;
-          font-size: 10px !important;
-        }
-
-        /* Mobile game area positioning - use transform with proper container */
-        .game-area {
-          border-width: 2px !important;
-          width: 800px !important;
-          height: 600px !important;
-          display: block !important;
+          white-space: nowrap !important;
           overflow: hidden !important;
-          position: relative !important;
-          margin: 5px 0 !important;
-          transform-origin: center center !important;
-          will-change: transform !important;
-          left: 50% !important;
-          transform: translateX(-50%) !important;
+          text-overflow: ellipsis !important;
         }
-
-        /* Use transform scale with translateX to maintain centering */
-        @media (max-width: 400px) {
-          .game-area { 
-            transform: translateX(-50%) scale(0.4) !important;
-          }
+        
+        .mobile-stats {
+          font-size: 14px !important;
+          gap: 15px !important;
+          flex-wrap: nowrap !important;
         }
-        @media (min-width: 401px) and (max-width: 500px) {
-          .game-area { 
-            transform: translateX(-50%) scale(0.48) !important;
-          }
+        
+        .mobile-stats > div {
+          white-space: nowrap !important;
+          min-width: auto !important;
         }
-        @media (min-width: 501px) and (max-width: 600px) {
-          .game-area { 
-            transform: translateX(-50%) scale(0.56) !important;
-          }
+        
+        /* Hide audio buttons on mobile to save space */
+        .audio-controls {
+          display: none !important;
         }
-        @media (min-width: 601px) and (max-width: 767px) {
-          .game-area { 
-            transform: translateX(-50%) scale(0.65) !important;
-          }
+        
+        /* Compact lives display */
+        .mobile-lives {
+          margin-right: 10px !important;
         }
-
-        /* Hide desktop debug panels on mobile */
+        
+        .mobile-lives span {
+          font-size: 12px !important;
+          margin-right: 5px !important;
+        }
+        
+        .mobile-lives div {
+          width: 20px !important;
+          height: 15px !important;
+          margin-left: 2px !important;
+        }
+      }
+      
+      /* ALL TOUCH DEVICES (including tablets 1024px+) - Force mobile experience */
+      @media (pointer: coarse) {
+        /* Show touch controls for ALL touch devices */
+        .mobile-controls {
+          display: flex !important;
+        }
+        
+        /* Performance optimizations for ALL touch devices */
+        *, *::before, *::after {
+          animation-duration: 0s !important;
+          animation-delay: 0s !important;
+          transition-duration: 0s !important;
+          transition-delay: 0s !important;
+        }
+        
+        /* Disable resource-intensive effects for ALL touch devices */
+        #app {
+          animation: none !important;
+          background: linear-gradient(180deg, #000428 0%, #004e92 100%) !important;
+        }
+        
+        /* Hide debug panels on ALL touch devices */
         div[style*="position: absolute"][style*="top: 80px"] {
           display: none !important;
         }
-
-        /* Adjust touch controls for better mobile UX */
-        .mobile-controls {
-          bottom: 8px;
-          padding: 0 8px;
-        }
-
-        .touch-button {
-          width: 65px;
-          height: 65px;
-          font-size: 18px;
-        }
-
-        .shoot-control .touch-button {
-          width: 85px;
-          height: 85px;
-          font-size: 14px;
+        
+        /* Compact header for ALL touch devices */
+        .mobile-header {
+          padding: 8px 15px !important;
+          font-size: 12px !important;
         }
         
-        /* Performance optimizations for mobile */
-        * {
-          backface-visibility: hidden !important;
-          transform-style: flat !important;
+        .mobile-header h1 {
+          font-size: 18px !important;
+          margin: 0 !important;
+          line-height: 1 !important;
         }
         
-        /* Reduce visual complexity on mobile */
-        .game-area::before {
-          display: none !important; /* Remove grid overlay */
+        .mobile-header .subtitle {
+          font-size: 8px !important;
+          margin-top: 2px !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
         }
         
-        /* Simplify box-shadows for performance */
+        .mobile-stats {
+          font-size: 14px !important;
+          gap: 15px !important;
+          flex-wrap: nowrap !important;
+        }
+        
+        .mobile-stats > div {
+          white-space: nowrap !important;
+          min-width: auto !important;
+        }
+        
+        /* Hide audio buttons on ALL touch devices */
+        .audio-controls {
+          display: none !important;
+        }
+        
+        /* Compact lives display for ALL touch devices */
+        .mobile-lives {
+          margin-right: 10px !important;
+        }
+        
+        .mobile-lives span {
+          font-size: 12px !important;
+          margin-right: 5px !important;
+        }
+        
+        .mobile-lives div {
+          width: 20px !important;
+          height: 15px !important;
+          margin-left: 2px !important;
+        }
+        
+        /* Reset game area for ALL touch devices */
         .game-area {
-          box-shadow: 0 0 10px #00ffff !important;
+          width: 800px !important;
+          height: 600px !important;
+          margin: 20px auto !important;
+          border-width: 4px !important;
+          position: relative !important;
+          overflow: hidden !important;
+          transform: none !important;
+          left: auto !important;
+        }
+      }
+
+      /* ===== PROGRESSIVE ENHANCEMENT BREAKPOINTS ===== */
+      /* Mobile-first with em-based breakpoints for accessibility */
+      /* Portrait orientation scaling (default) */
+      
+      /* Large mobile devices (401px+) */
+      @media (min-width: 25.0625em) and (orientation: portrait) { /* 401px */
+        #app > div {
+          transform: scale(0.5);
+        }
+      }
+      
+      /* Small tablets and large phones (601px+) */
+      @media (min-width: 37.5625em) and (orientation: portrait) { /* 601px */
+        #app > div {
+          transform: scale(0.65);
+        }
+      }
+      
+      /* Tablets (768px+) */
+      @media (min-width: 48em) and (orientation: portrait) { /* 768px */
+        #app > div {
+          transform: scale(0.8);
+        }
+      }
+      
+      /* Landscape orientation scaling - width-based since height is limited */
+      @media (min-width: 30em) and (orientation: landscape) and (max-height: 500px) { /* 480px+ width */
+        #app > div {
+          transform: scale(0.4);
+        }
+      }
+      
+      @media (min-width: 40em) and (orientation: landscape) and (max-height: 500px) { /* 640px+ width */
+        #app > div {
+          transform: scale(0.45);
+        }
+      }
+      
+      @media (min-width: 50em) and (orientation: landscape) and (max-height: 500px) { /* 800px+ width */
+        #app > div {
+          transform: scale(0.5);
+        }
+      }
+      
+      /* Large tablets (1024px+) with touch - bigger scaling for better visibility */
+      @media (min-width: 64em) and (pointer: coarse) {
+        #app > div {
+          transform: scale(0.85) !important; /* Larger scale for big tablets */
+        }
+      }
+      
+      /* Desktop mode ONLY for true desktop computers (non-touch) */
+      @media (min-width: 64em) and (pointer: fine) and (hover: hover) and (any-pointer: fine) {
+        /* Override ALL touch device rules for true desktop */
+        
+        /* Hide touch controls on desktop */
+        .mobile-controls {
+          display: none !important;
+        }
+        
+        /* Restore full desktop experience */
+        #app {
+          transform: none !important;
+          width: 100% !important;
+          height: 100vh !important;
+          animation: starfield 20s linear infinite !important;
+          background: initial !important;
+          display: block !important;
+        }
+        
+        #app > div {
+          transform: none !important;
+          width: 100% !important;
+          height: 100% !important;
+          margin-top: 0 !important;
+        }
+        
+        /* Restore desktop animations and effects */
+        *, *::before, *::after {
+          animation-duration: initial !important;
+          animation-delay: initial !important;
+          transition-duration: initial !important;
+          transition-delay: initial !important;
+        }
+        
+        .score-display {
+          animation: fadeInOut 2s infinite !important;
+        }
+        
+        /* Desktop game area - no scaling needed */
+        .game-area {
+          width: 800px !important;
+          height: 600px !important;
+          margin: 20px auto !important;
+          left: initial !important;
+          transform: initial !important;
+        }
+        
+        /* Show debug panels on desktop */
+        div[style*="position: absolute"][style*="top: 80px"] {
+          display: block !important;
+        }
+        
+        /* Desktop header styling */
+        .mobile-header {
+          padding: 15px 30px !important;
+          font-size: initial !important;
+        }
+        
+        .mobile-header h1 {
+          font-size: 28px !important;
+        }
+        
+        .mobile-header .subtitle {
+          font-size: 12px !important;
+        }
+        
+        .mobile-stats {
+          font-size: initial !important;
+          gap: 30px !important;
+        }
+        
+        .audio-controls {
+          display: flex !important;
+        }
+        
+        .mobile-lives span {
+          font-size: initial !important;
+          margin-right: 10px !important;
+        }
+        
+        .mobile-lives div {
+          width: 25px !important;
+          height: 18px !important;
+          margin-left: 3px !important;
+        }
+      }
+
+      /* ===== FEATURE DETECTION & FALLBACKS ===== */
+      /* Ensure compatibility with older browsers */
+      
+      /* Fallback for browsers without transform support */
+      @supports not (transform: scale(1)) {
+        #app {
+          width: 100vw;
+          height: 100vh;
+          position: relative;
+        }
+        
+        #app > div {
+          zoom: 0.45; /* CSS zoom fallback for very old browsers */
+          transform: none;
+          width: 800px;
+          height: 700px;
+        }
+        
+        /* Portrait breakpoints */
+        @media (min-width: 25.0625em) and (orientation: portrait) {
+          #app > div { zoom: 0.5; }
+        }
+        
+        @media (min-width: 37.5625em) and (orientation: portrait) {
+          #app > div { zoom: 0.65; }
+        }
+        
+        @media (min-width: 48em) and (orientation: portrait) {
+          #app > div { zoom: 0.8; }
+        }
+        
+        /* Landscape breakpoints */
+        @media (orientation: landscape) and (max-height: 500px) {
+          #app > div { zoom: 0.35; }
+        }
+        
+        @media (min-width: 30em) and (orientation: landscape) and (max-height: 500px) {
+          #app > div { zoom: 0.4; }
+        }
+        
+        @media (min-width: 40em) and (orientation: landscape) and (max-height: 500px) {
+          #app > div { zoom: 0.45; }
+        }
+        
+        @media (min-width: 64em) {
+          #app > div { zoom: 1; }
+        }
+      }
+
+      /* ===== INTERACTION-BASED RESPONSIVE BEHAVIOR ===== */
+      /* Handle touch vs mouse interactions properly */
+      
+      /* Fine pointer devices (mouse) - smaller touch targets OK */
+      @media (pointer: fine) {
+        .touch-button {
+          min-width: 60px;
+          min-height: 60px;
+        }
+      }
+      
+      /* Coarse pointer devices (touch) - larger targets required */
+      @media (pointer: coarse) {
+        .touch-button {
+          min-width: 80px; /* WCAG minimum for touch */
+          min-height: 80px;
+          margin: 8px; /* Spacing between touch targets */
+        }
+      }
+      
+      /* Hover-capable devices only */
+      @media (hover: hover) {
+        .touch-button:hover {
+          background: linear-gradient(45deg, rgba(0,255,255,0.3), rgba(0,255,255,0.5));
+          transform: scale(1.05);
+        }
+      }
+      
+      /* Touch devices - use active states instead of hover */
+      @media (hover: none) {
+        .touch-button:active {
+          background: linear-gradient(45deg, rgba(0,255,255,0.4), rgba(0,255,255,0.6));
+          transform: scale(0.95);
         }
       }
     </style>
@@ -595,5 +839,6 @@
   </head>
   <body>
     <div id="app"></div>
+    <div id="mobile-controls"></div>
   </body>
 </html>
