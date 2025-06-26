@@ -562,55 +562,56 @@
   "Move invader bullets downward and remove off-screen ones"
   (update state :invader-bullets
           (fn [bullets]
-            (->> bullets
-                 (map #(update % :y + 5)) ;; Move down at 2 pixels/frame
-                 (filter #(< (:y %) game-height)))))) ;; Remove off-screen bullets 
+            (let [;; Compensate for mobile 30fps vs desktop 60fps
+                  frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
+                  invader-bullet-speed (* 5 frame-rate-multiplier)]
+              (->> bullets
+                   (map #(update % :y + invader-bullet-speed))
+                   (filter #(< (:y %) game-height))))))) ;; Remove off-screen bullets 
 
 (defn move-invaders [state]
-  (let [;; Faster invader movement for better game balance
-        move-speed (* 2 (+ 1 (* 0.3 (dec (:level state))))) ;; 2-3 pixels per movement
-        move-interval (max 8 (- 15 (* 1 (:level state)))) ;; 15 frames between movements (4x faster)
-        timer (:invader-move-timer state)
+  (let [;; Smooth continuous movement - small steps every frame
+        base-speed 0.5 ;; Base speed in pixels per frame
+        level-multiplier (+ 1 (* 0.2 (dec (:level state)))) ;; Slight speed increase per level
+        ;; Compensate for mobile 30fps vs desktop 60fps
+        frame-rate-multiplier (if (:is-mobile state) 2.0 1.0) ;; 2x speed on mobile to compensate for 30fps
+        move-speed (* base-speed level-multiplier frame-rate-multiplier)
         direction (:invader-direction state)
         invaders (:invaders state)]
 
-    (if (>= timer move-interval)
-      ;; Time to move invaders
-      (let [;; Calculate new horizontal positions
-            new-invaders (map #(update % :x + (* direction move-speed)) invaders)
+    ;; Move invaders every frame for smooth movement
+    (let [;; Calculate new horizontal positions with smooth movement
+          new-invaders (map #(update % :x + (* direction move-speed)) invaders)
 
-            ;; Check if any invader hit the screen edge - FIXED boundary checking
-            leftmost-x (apply min (map :x new-invaders))
-            rightmost-x (apply max (map #(+ (:x %) invader-width) new-invaders))
-            hit-edge? (or (<= leftmost-x 0)
-                          (>= rightmost-x game-width))] ;; FIXED: > instead of >=
+          ;; Check if any invader hit the screen edge
+          leftmost-x (apply min (map :x new-invaders))
+          rightmost-x (apply max (map #(+ (:x %) invader-width) new-invaders))
+          hit-edge? (or (<= leftmost-x 0)
+                        (>= rightmost-x game-width))]
 
-        (if hit-edge?
-          ;; Hit edge: drop down and reverse direction
-          (do
-
-            (try
-              (play-hit-sound) ;; Sound when invaders change direction
-              (catch js/Error e
-                (comment "Audio error:" e)))
-            (-> state
-                (assoc :invaders (map #(update % :y + (:invader-drop-distance state)) invaders))
-                (update :invader-direction -) ;; Reverse direction
-                (assoc :invader-move-timer 0)
-                add-screen-shake))
-
-          ;; Normal horizontal movement
+      (if hit-edge?
+        ;; Hit edge: drop down and reverse direction
+        (do
+          (try
+            (play-hit-sound) ;; Sound when invaders change direction
+            (catch js/Error e
+              (comment "Audio error:" e)))
           (-> state
-              (assoc :invaders new-invaders)
-              (assoc :invader-move-timer 0))))
+              (assoc :invaders (map #(update % :y + (:invader-drop-distance state)) invaders))
+              (update :invader-direction -) ;; Reverse direction
+              add-screen-shake))
 
-      ;; Not time to move yet, just increment timer
-      (update state :invader-move-timer inc))))
+        ;; Normal horizontal movement - smooth every frame
+        (-> state
+            (assoc :invaders new-invaders))))))
 
 (defn move-bullets [state]
   (let [old-bullets (:bullets state)
+        ;; Compensate for mobile 30fps vs desktop 60fps
+        frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
+        effective-bullet-speed (* bullet-speed frame-rate-multiplier)
         new-bullets (->> old-bullets
-                         (map #(update % :y - bullet-speed))
+                         (map #(update % :y - effective-bullet-speed))
                          (filter #(> (:y %) 0)))]
     (assoc state :bullets new-bullets)))
 
@@ -792,7 +793,9 @@
 (defn process-continuous-movement [state]
   "Process continuous movement while keys are held down"
   (let [keys (:keys-pressed state)
-        move-speed 4] ; Pixels per frame for continuous movement
+        ;; Compensate for mobile 30fps vs desktop 60fps
+        frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
+        move-speed (* 4 frame-rate-multiplier)] ; Pixels per frame for continuous movement
     (cond
       (contains? keys "ArrowLeft")
       (move-player state :left-continuous move-speed)
@@ -810,7 +813,9 @@
     "ArrowRight" (swap! game-state assoc :keys-pressed
                         (conj (or (:keys-pressed @game-state) #{}) key))
     " " (do
-          (swap! game-state fire-bullet))))
+          (swap! game-state fire-bullet))
+    ;; Default case - ignore unknown keys
+    nil))
 
 (defn handle-key-up [key]
   "Handle key release events - remove keys from pressed set"
@@ -819,6 +824,7 @@
                        (disj (or (:keys-pressed @game-state) #{}) key))
     "ArrowRight" (swap! game-state assoc :keys-pressed
                         (disj (or (:keys-pressed @game-state) #{}) key))
+    ;; Default case - ignore unknown keys
     nil))
 
 (defn setup-global-key-listeners []
