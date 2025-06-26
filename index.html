@@ -374,6 +374,14 @@
         /* Disable long press context menu */
         -webkit-context-menu: none;
         context-menu: none;
+        /* Performance optimizations for mobile */
+        will-change: transform, box-shadow;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        -webkit-font-smoothing: antialiased;
+        /* Prevent double-tap zoom */
+        ms-touch-action: manipulation;
+        touch-action: manipulation;
       }
 
       .touch-button:active {

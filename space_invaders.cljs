@@ -49,27 +49,7 @@
     :frame-skip 0 ;; Mobile frame skipping for performance
     :reduced-effects false})) ;; Mobile reduced effects mode
 
-;; Rolling debug buffer
-(defonce debug-buffer (atom []))
-
-(defn debug-log [msg]
-  (let [timestamp (.toLocaleTimeString (js/Date.))
-        entry (str timestamp " - " msg)]
-    (swap! debug-buffer
-           (fn [buffer]
-             (let [new-buffer (conj buffer entry)]
-               (if (> (count new-buffer) 20)
-                 (vec (take-last 20 new-buffer))
-                 new-buffer))))
-    (println entry)))
-
-(defn get-debug-log []
-  @debug-buffer)
-
-(defn clear-debug-log []
-  (reset! debug-buffer []))
-
- ;; Audio System
+;; Audio System
  ;; Audio System  
 (defonce audio-context (atom nil))
 
@@ -79,15 +59,15 @@
       (when (not @audio-context)
         (let [ctx (js/AudioContext.)]
           (reset! audio-context ctx)
-          (println "Audio context initialized successfully")
-          (println "Audio context state:" (.-state ctx))))
+          (comment "Audio context initialized successfully")
+          (comment "Audio context state:" (.-state ctx))))
       ;; Resume context if it's suspended (Chrome autoplay policy)
       (when @audio-context
         (when (= (.-state @audio-context) "suspended")
           (.resume @audio-context)
-          (println "Audio context resumed")))
+          (comment "Audio context resumed")))
       (catch js/Error e
-        (println "Audio initialization failed:" e)))))
+        (comment "Audio initialization failed:" e)))))
 
 (defn play-sound [frequency duration]
   (when @audio-context
@@ -105,9 +85,9 @@
         (aset gain "gain" "value" 0.15) ;; Slightly louder
         (.start oscillator)
         (.stop oscillator (+ (.-currentTime ctx) duration))
-        (println (str "Playing sound: " frequency "Hz for " duration "s")))
+        (comment (str "Playing sound: " frequency "Hz for " duration "s")))
       (catch js/Error e
-        (println "Sound playback failed:" e)))))
+        (comment "Sound playback failed:" e)))))
 
 (defn play-shoot-sound []
   (play-sound 440 0.1))
@@ -162,10 +142,10 @@
 
           (.start oscillator now)
           (.stop oscillator (+ now 0.15))
-          (println "💗 Heartbeat played!")))
+          (comment "💗 Heartbeat played!")))
 
       (catch js/Error e
-        (println "Heartbeat sound error:" e)))))
+        (comment "Heartbeat sound error:" e)))))
 
 (defn should-play-heartbeat? [state]
   "Determine if it's time to play the heartbeat based on game rhythm"
@@ -175,14 +155,11 @@
         should-play (and (> invader-count 0) ; Only when invaders remain
                          (not (:game-over state)) ; Not during game over
                          (= (mod frame heartbeat-interval) 0))] ; On rhythm
-    (when (and should-play (= (mod frame (* heartbeat-interval 10)) 0)) ; Debug every 10th heartbeat
-      (debug-log (str "💓 Heartbeat tempo: " invader-count " invaders → "
-                      (int (/ 60 heartbeat-interval)) " BPM")))
     should-play))
 
 (defn test-heartbeat []
   "Test function to manually trigger heartbeat sound for volume testing"
-  (println "🔊 Testing heartbeat sound...")
+  (comment "🔊 Testing heartbeat sound...")
   (play-heartbeat-sound)) ; On rhythm
 
 (defn play-hit-sound []
@@ -320,20 +297,18 @@
             bullet-id (:next-bullet-id state)
             new-bullet {:x bullet-x :y bullet-y :id bullet-id}
             bullets-fired (inc (:bullets-fired-this-level state))]
-        (debug-log (str "Creating bullet " bullet-id " at position " bullet-x " " bullet-y " (frame " current-frame ") - AUTHENTIC 1-BULLET MODE - Shot #" bullets-fired))
+
         (try
           (play-shoot-sound) ;; Sound effect
           (catch js/Error e
-            (println "Audio error:" e)))
+            (comment "Audio error:" e)))
         (-> state
             (update :bullets conj new-bullet)
             (update :next-bullet-id inc)
             (assoc :last-fire-frame current-frame)
             (assoc :bullets-fired-this-level bullets-fired))) ;; Track bullets for UFO scoring
       (do
-        (if (not (empty? bullets))
-          (debug-log (str "Cannot fire - bullet already on screen (authentic mode) - " (count bullets) " bullets active"))
-          (debug-log (str "Cannot fire - debounce active, only " (- current-frame last-fire) " frames since last shot")))
+
         state))))
 
  ;; UFO Mystery Ship System
@@ -364,7 +339,7 @@
   (if (should-spawn-ufo? state)
     (let [direction (if (< (rand) 0.5) :left-to-right :right-to-left)
           new-ufo (create-ufo direction)]
-      (debug-log (str "UFO spawned! Direction: " direction " at " (:x new-ufo) "," (:y new-ufo)))
+
       (-> state
           (assoc :ufo new-ufo)
           (assoc :ufo-spawn-timer 0))) ;; Reset spawn timer
@@ -378,7 +353,7 @@
           off-screen? (or (< new-x -60) (> new-x (+ game-width 20)))]
       (if off-screen?
         (do
-          (debug-log "UFO moved off screen")
+
           (assoc state :ufo nil)) ;; Remove UFO
         (assoc-in state [:ufo :x] new-x))) ;; Update position
     state))
@@ -474,14 +449,13 @@
                          (<= bullet-center-x block-right)
                          (>= bullet-center-y block-top)
                          (<= bullet-center-y block-bottom))
-                (debug-log (str "🎯 BULLET COLLISION! ID:" (:id bullet) " hit block at " (:x block) "," (:y block)))
                 (reset! hit-barrier-block {:barrier barrier :block block :bullet bullet})))))
 
         (if @hit-barrier-block
           ;; Bullet hit a barrier block - damage the barrier and remove bullet
           (let [hit-info @hit-barrier-block
                 bullet-pos {:x (:x (:bullet hit-info)) :y (:y (:bullet hit-info))}]
-            (debug-log (str "ðŸ’¥ BARRIER DAMAGED at " (:x bullet-pos) "," (:y bullet-pos)))
+            (comment (str "ðŸ’¥ BARRIER DAMAGED at " (:x bullet-pos) "," (:y bullet-pos)))
             (swap! results update :barriers damage-barrier-at (:x bullet-pos) (:y bullet-pos) 10)
             (swap! results update :hits conj bullet-pos))
           ;; Bullet missed all barriers - keep it
@@ -497,9 +471,9 @@
 
     ;; Debug: Log when we have bullets to process
     (when (seq player-bullets)
-      (debug-log (str "PROCESSING " (count player-bullets) " PLAYER bullets vs barriers")))
+      (comment (str "PROCESSING " (count player-bullets) " PLAYER bullets vs barriers")))
     (when (seq invader-bullets)
-      (debug-log (str "PROCESSING " (count invader-bullets) " INVADER bullets vs barriers")))
+      (comment (str "PROCESSING " (count invader-bullets) " INVADER bullets vs barriers")))
 
     (let [player-result (check-bullet-barrier-collisions player-bullets barriers)
           surviving-player-bullets (:bullets player-result)
@@ -525,16 +499,16 @@
 
       ;; Debug: Log collision results
       (when (seq player-hits)
-        (debug-log (str "✅ PLAYER BULLET HITS: " (count player-hits) " at positions: " player-hits)))
+        (comment (str "✅ PLAYER BULLET HITS: " (count player-hits) " at positions: " player-hits)))
       (when (seq invader-hits)
-        (debug-log (str "ðŸ”¥ INVADER BULLET HITS: " (count invader-hits) " at positions: " invader-hits)))
+        (comment (str "ðŸ”¥ INVADER BULLET HITS: " (count invader-hits) " at positions: " invader-hits)))
 
       ;; Play sound if any barriers were hit
       (when (seq all-hits)
         (try
           (play-hit-sound) ;; Barrier hit sound
           (catch js/Error e
-            (println "Audio error:" e))))
+            (comment "Audio error:" e))))
 
       (-> state
           (assoc :bullets surviving-player-bullets)
@@ -571,11 +545,11 @@
       (let [shooter (rand-nth bottom-invaders)
             bullet-id (:next-invader-bullet-id state)
             new-bullet (create-invader-bullet shooter bullet-id)]
-        (debug-log (str "Invader fires bullet " bullet-id " at " (:x new-bullet) "," (:y new-bullet)))
+        (comment (str "Invader fires bullet " bullet-id " at " (:x new-bullet) "," (:y new-bullet)))
         (try
           (play-hit-sound) ;; Different sound for invader shooting
           (catch js/Error e
-            (println "Audio error:" e)))
+            (comment "Audio error:" e)))
         (-> state
             (update :invader-bullets conj new-bullet)
             (update :next-invader-bullet-id inc)
@@ -614,11 +588,11 @@
         (if hit-edge?
           ;; Hit edge: drop down and reverse direction
           (do
-            (debug-log (str "Invaders hit edge! Dropping down and reversing direction"))
+
             (try
               (play-hit-sound) ;; Sound when invaders change direction
               (catch js/Error e
-                (println "Audio error:" e)))
+                (comment "Audio error:" e)))
             (-> state
                 (assoc :invaders (map #(update % :y + (:invader-drop-distance state)) invaders))
                 (update :invader-direction -) ;; Reverse direction
@@ -653,7 +627,7 @@
 
     ;; Debug: Log when checking bullet-invader collisions
     (when (seq bullets)
-      (debug-log (str "Checking " (count bullets) " bullets vs " (count invaders) " invaders")))
+      (comment (str "Checking " (count bullets) " bullets vs " (count invaders) " invaders")))
 
     (loop [remaining-bullets bullets
            remaining-invaders invaders
@@ -674,11 +648,11 @@
           (if hit-invader
             (let [invader-score (get-invader-score hit-invader)
                   row (get-invader-row hit-invader)]
-              (debug-log (str "AUTHENTIC SCORING! Hit invader in row " row " for " invader-score " points"))
+              (comment (str "AUTHENTIC SCORING! Hit invader in row " row " for " invader-score " points"))
               (try
                 (play-hit-sound)
                 (catch js/Error e
-                  (println "Audio error:" e)))
+                  (comment "Audio error:" e)))
               ;; Bullet hit invader - remove both, add effects with authentic scoring
               (recur (rest remaining-bullets)
                      (remove #{hit-invader} remaining-invaders)
@@ -701,11 +675,11 @@
           hit-bullet (first (filter #(rectangles-collide? % ufo) bullets))]
       (if hit-bullet
         (let [ufo-score (calculate-ufo-score (:bullets-fired-this-level state))]
-          (debug-log (str "UFO HIT! Score: " ufo-score " points (bullet #" (:bullets-fired-this-level state) ")"))
+          (comment (str "UFO HIT! Score: " ufo-score " points (bullet #" (:bullets-fired-this-level state) ")"))
           (try
             (play-explosion-sound) ;; UFO hit sound
             (catch js/Error e
-              (println "Audio error:" e)))
+              (comment "Audio error:" e)))
           (-> state
               (assoc :ufo nil) ;; Remove UFO
               (update :bullets #(remove #{hit-bullet} %)) ;; Remove bullet
@@ -728,11 +702,11 @@
     (if (not (empty? hit-bullets))
       ;; Player was hit!
       (do
-        (debug-log (str "Player hit by invader bullet! Lives: " (dec (:lives state))))
+        (comment (str "Player hit by invader bullet! Lives: " (dec (:lives state))))
         (try
           (play-explosion-sound) ;; Player hit sound
           (catch js/Error e
-            (println "Audio error:" e)))
+            (comment "Audio error:" e)))
         (if (> (:lives state) 1)
           ;; Lose a life, reset level
           (-> state
@@ -747,7 +721,7 @@
               add-screen-shake)
           ;; Game over
           (do
-            (debug-log "Game Over! Player destroyed!")
+            (comment "Game Over! Player destroyed!")
             (assoc state :game-over true))))
 
       ;; No collision, just remove any bullets that hit
@@ -758,11 +732,11 @@
 (defn check-level-completion [state]
   (if (empty? (:invaders state))
     (do
-      (debug-log (str "Level " (:level state) " complete! All 55 invaders destroyed with authentic scoring!"))
+      (comment (str "Level " (:level state) " complete! All 55 invaders destroyed with authentic scoring!"))
       (try
         (play-explosion-sound) ;; Victory sound
         (catch js/Error e
-          (println "Audio error:" e)))
+          (comment "Audio error:" e)))
       (-> state
           (update :level inc)
           (assoc :invaders (initialize-invaders (inc (:level state))))
@@ -779,11 +753,11 @@
       (some #(>= (:y %) (- (:y player) 50)) invaders)
       (if (> (:lives state) 1)
         (do
-          (debug-log (str "Lost a life! Lives remaining: " (dec (:lives state))))
+          (comment (str "Lost a life! Lives remaining: " (dec (:lives state))))
           (try
             (play-explosion-sound) ;; Death sound
             (catch js/Error e
-              (println "Audio error:" e)))
+              (comment "Audio error:" e)))
           (-> state
               (update :lives dec)
               (assoc :invaders (initialize-invaders (:level state)))
@@ -791,7 +765,7 @@
               (assoc :invader-direction 1) ;; Reset movement direction
               (assoc :invader-move-timer 0))) ;; Reset movement timer
         (do
-          (debug-log "Game Over! No lives remaining!")
+          (comment "Game Over! No lives remaining!")
           (assoc state :game-over true)))
 
       :else state)))
@@ -819,9 +793,6 @@
   "Process continuous movement while keys are held down"
   (let [keys (:keys-pressed state)
         move-speed 4] ; Pixels per frame for continuous movement
-    ;; Debug: Log active keys every 60 frames (1 second)
-    (when (and (not (empty? keys)) (= (mod (:frame state) 60) 0))
-      (debug-log (str "🎮 CONTINUOUS MOVEMENT: Active keys: " keys " | Player X: " (get-in state [:player :x]))))
     (cond
       (contains? keys "ArrowLeft")
       (move-player state :left-continuous move-speed)
@@ -839,9 +810,7 @@
     "ArrowRight" (swap! game-state assoc :keys-pressed
                         (conj (or (:keys-pressed @game-state) #{}) key))
     " " (do
-          (swap! game-state fire-bullet)
-          (debug-log "Spacebar - firing!"))
-    (debug-log (str "Other key pressed: " key))))
+          (swap! game-state fire-bullet))))
 
 (defn handle-key-up [key]
   "Handle key release events - remove keys from pressed set"
@@ -976,11 +945,11 @@
                               (.includes user-agent "iPad"))]
     (reset! mobile-device (and (or has-touch pointer-coarse mobile-user-agent)
                                (or small-screen-with-touch pointer-coarse mobile-user-agent)))
-    (debug-log (str "📱 Device detection: Mobile=" @mobile-device
-                    " | Touch=" has-touch
-                    " | PointerCoarse=" pointer-coarse
-                    " | SmallScreen=" (< (.-innerWidth js/window) 768)
-                    " | MobileUA=" mobile-user-agent))
+    (comment (str "📱 Device detection: Mobile=" @mobile-device
+                  " | Touch=" has-touch
+                  " | PointerCoarse=" pointer-coarse
+                  " | SmallScreen=" (< (.-innerWidth js/window) 768)
+                  " | MobileUA=" mobile-user-agent))
     @mobile-device))
 
 (defn game-loop []
@@ -994,14 +963,14 @@
       (reset! game-loop-id (js/requestAnimationFrame game-loop)))))
 
 (defn start-game []
-  (debug-log "🚀 AUTHENTIC SPACE INVADERS - 5×11 Formation with Tiered Scoring!")
-  (debug-log "💯 Features: 55 invaders, 10/20/30 point scoring, UFO mystery ships, destructible barriers")
-  (debug-log "🎵 NEW: Authentic heartbeat audio that speeds up as invaders are destroyed!")
+  (comment "🚀 AUTHENTIC SPACE INVADERS - 5×11 Formation with Tiered Scoring!")
+  (comment "💯 Features: 55 invaders, 10/20/30 point scoring, UFO mystery ships, destructible barriers")
+  (comment "🎵 NEW: Authentic heartbeat audio that speeds up as invaders are destroyed!")
 
   ;; Detect device type for performance optimization
   (let [is-mobile (detect-mobile-device)]
     (when is-mobile
-      (debug-log "📱 MOBILE MODE: 30fps + performance optimizations enabled"))
+      (comment "📱 MOBILE MODE: 30fps + performance optimizations enabled"))
 
     (init-audio) ;; Initialize sound
     (reset! game-state {:player {:x 380 :y 550}
@@ -1495,8 +1464,7 @@
                             nil)
              :on-click (fn [e]
                          (.focus (.-target e))
-                         (init-audio)
-                         (debug-log "Game area clicked - should be focused now"))}
+                         (init-audio))}
 
        ;; Grid overlay effect
        [:div {:style {:position "absolute"
@@ -1557,45 +1525,53 @@
            :on-touch-start (fn [e]
                              (.preventDefault e)
                              (.stopPropagation e)
-                             (handle-key-down "ArrowLeft")
-                             (debug-log "Touch LEFT start"))
+                             (handle-key-down "ArrowLeft"))
            :on-touch-end (fn [e]
                            (.preventDefault e)
                            (.stopPropagation e)
-                           (handle-key-up "ArrowLeft")
-                           (debug-log "Touch LEFT end"))
+                           (handle-key-up "ArrowLeft"))
+           :on-touch-cancel (fn [e]
+                              (.preventDefault e)
+                              (.stopPropagation e)
+                              (handle-key-up "ArrowLeft"))
            :on-mouse-down (fn [e]
                             (.preventDefault e)
                             (.stopPropagation e)
-                            (handle-key-down "ArrowLeft")
-                            (debug-log "Mouse LEFT start"))
+                            (handle-key-down "ArrowLeft"))
            :on-mouse-up (fn [e]
                           (.preventDefault e)
                           (.stopPropagation e)
-                          (handle-key-up "ArrowLeft")
-                          (debug-log "Mouse LEFT end"))}
+                          (handle-key-up "ArrowLeft"))
+           :on-mouse-leave (fn [e]
+                             (.preventDefault e)
+                             (.stopPropagation e)
+                             (handle-key-up "ArrowLeft"))}
      "←"]
     [:div {:class "touch-button"
            :on-touch-start (fn [e]
                              (.preventDefault e)
                              (.stopPropagation e)
-                             (handle-key-down "ArrowRight")
-                             (debug-log "Touch RIGHT start"))
+                             (handle-key-down "ArrowRight"))
            :on-touch-end (fn [e]
                            (.preventDefault e)
                            (.stopPropagation e)
-                           (handle-key-up "ArrowRight")
-                           (debug-log "Touch RIGHT end"))
+                           (handle-key-up "ArrowRight"))
+           :on-touch-cancel (fn [e]
+                              (.preventDefault e)
+                              (.stopPropagation e)
+                              (handle-key-up "ArrowRight"))
            :on-mouse-down (fn [e]
                             (.preventDefault e)
                             (.stopPropagation e)
-                            (handle-key-down "ArrowRight")
-                            (debug-log "Mouse RIGHT start"))
+                            (handle-key-down "ArrowRight"))
            :on-mouse-up (fn [e]
                           (.preventDefault e)
                           (.stopPropagation e)
-                          (handle-key-up "ArrowRight")
-                          (debug-log "Mouse RIGHT end"))}
+                          (handle-key-up "ArrowRight"))
+           :on-mouse-leave (fn [e]
+                             (.preventDefault e)
+                             (.stopPropagation e)
+                             (handle-key-up "ArrowRight"))}
      "→"]]
 
    ;; Right side fire control
@@ -1604,13 +1580,11 @@
            :on-touch-start (fn [e]
                              (.preventDefault e)
                              (.stopPropagation e)
-                             (swap! game-state fire-bullet)
-                             (debug-log "Touch FIRE"))
+                             (swap! game-state fire-bullet))
            :on-click (fn [e]
                        (.preventDefault e)
                        (.stopPropagation e)
-                       (swap! game-state fire-bullet)
-                       (debug-log "Click FIRE"))}
+                       (swap! game-state fire-bullet))}
      "FIRE"]]])
 
 (defn init []
