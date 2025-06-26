@@ -31,6 +31,14 @@
         color: #fff;
         font-family: 'Courier New', monospace;
         overflow: hidden;
+        /* Prevent text selection and touch behaviors on mobile */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
       }
       
       #app {
@@ -45,6 +53,16 @@
         background-repeat: repeat;
         background-size: 200px 100px;
         animation: starfield 20s linear infinite;
+        /* Comprehensive touch behavior prevention */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+        -webkit-text-size-adjust: none;
+        -webkit-font-smoothing: antialiased;
       }
 
       /* Starfield animation */
