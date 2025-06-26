@@ -436,25 +436,21 @@
         }
       }
 
-      /* Touch device optimizations - applies to mobile and tablet */
+      /* Touch device optimizations - targeted performance improvements */
       @media (max-width: 63.999em) { /* Below 1024px */
         /* Show touch controls */
         .mobile-controls {
           display: flex !important;
         }
         
-        /* Performance optimizations for touch devices */
-        *, *::before, *::after {
-          animation-duration: 0s !important;
-          animation-delay: 0s !important;
-          transition-duration: 0s !important;
-          transition-delay: 0s !important;
+        /* TARGETED performance optimizations - preserve essential animations */
+        .starfield, #app {
+          animation-duration: 10s !important; /* Slower starfield for battery life */
         }
         
-        /* Disable resource-intensive effects */
-        #app {
-          animation: none !important;
-          background: linear-gradient(180deg, #000428 0%, #004e92 100%) !important;
+        /* Reduce complex animations but keep essential ones */
+        .bulletGlow, .pulse, .explosion {
+          animation-duration: 0.3s !important; /* Faster, less resource intensive */
         }
         
         /* Hide debug panels on touch devices */

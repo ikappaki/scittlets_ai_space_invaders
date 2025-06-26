@@ -892,38 +892,44 @@
     state
     (let [is-mobile (:is-mobile state)]
       (if is-mobile
-        ;; Mobile: Use frame skipping for performance
-        (let [frame-skip (:frame-skip state)
-              should-skip-frame (< frame-skip 2)] ;; Skip 2 out of 3 frames on mobile
-          (if should-skip-frame
-            ;; Mobile: Skip heavy processing, just update frame counters
-            (-> state
-                (update :frame inc)
-                (update :frame-skip inc))
-            ;; Mobile: Full frame processing every 3rd frame
-            (-> state
-                (update :frame inc)
-                (assoc :frame-skip 0) ;; Reset skip counter
-                ;; Play heartbeat audio on rhythm (less frequent on mobile)
-                (#(do (when (and (should-play-heartbeat? %)
-                                 (= (mod (:frame %) 3) 0)) ;; Less frequent on mobile
-                        (play-heartbeat-sound))
-                      %))
-                process-continuous-movement
-                move-bullets
-                move-invader-bullets
-                move-invaders
-                fire-invader-bullet
-                spawn-ufo ;; UFO: Check if UFO should spawn
-                move-ufo ;; UFO: Move existing UFO
-                process-barrier-collisions ;; BARRIERS: Process bullet-barrier collisions first
-                check-bullet-invader-collisions ;; Player bullets vs invaders  
-                check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
-                check-invader-bullet-player-collisions ;; Invader bullets vs player
-                update-explosions
-                update-particles
-                check-level-completion
-                check-player-collision)))
+        ;; Mobile: Optimized update with reduced processing
+        (let [frame (:frame state)
+              ;; Process every other frame for some heavy operations
+              process-heavy (= (mod frame 2) 0)]
+          (-> state
+              (update :frame inc)
+              ;; Always process essential gameplay
+              process-continuous-movement
+              move-bullets
+              move-invader-bullets
+
+              ;; Conditionally process heavy operations every other frame
+              (#(if process-heavy
+                  (-> %
+                      move-invaders
+                      fire-invader-bullet
+                      spawn-ufo
+                      move-ufo
+                      process-barrier-collisions
+                      check-bullet-invader-collisions
+                      check-bullet-ufo-collision
+                      check-invader-bullet-player-collisions
+                      check-level-completion
+                      check-player-collision)
+                  %))
+
+              ;; Always update visual effects but limit particles
+              update-explosions
+              (#(if (< (count (:particles %)) 20) ; Limit particles on mobile
+                  (update-particles %)
+                  (assoc % :particles (take 15 (:particles %)))))
+
+              ;; Play heartbeat less frequently on mobile (every 4th frame)
+              (#(do (when (and (should-play-heartbeat? %)
+                               (= (mod frame 4) 0))
+                      (play-heartbeat-sound))
+                    %))))
+
         ;; Desktop: Full 60 FPS performance - no optimizations
         (-> state
             (update :frame inc)
@@ -951,20 +957,42 @@
                 (remove-screen-shake %)
                 %)))))))
 
-;; Game loop
+;; Game loop with adaptive frame rate for mobile performance
 (defonce game-loop-id (atom nil))
+(defonce mobile-device (atom false))
+
+(defn detect-mobile-device []
+  "Detect if device is mobile/touch-based for performance optimization"
+  (let [user-agent (.-userAgent js/navigator)
+        has-touch (> (.-maxTouchPoints js/navigator) 0)
+        pointer-coarse (.matchMedia js/window "(pointer: coarse)")
+        small-screen (< (.-innerWidth js/window) 768)]
+    (reset! mobile-device (or has-touch (.-matches pointer-coarse) small-screen))
+    (debug-log (str "📱 Device detection: Mobile=" @mobile-device " | Touch=" has-touch " | Small=" small-screen))
+    @mobile-device))
 
 (defn game-loop []
-  (swap! game-state update-game)
-  (reset! game-loop-id (js/requestAnimationFrame game-loop)))
+  "Game loop with adaptive frame rate - 30fps mobile, 60fps desktop"
+  (let [is-mobile @mobile-device]
+    (swap! game-state update-game)
+    (if is-mobile
+      ;; Mobile: 30fps for stable performance (33ms interval)
+      (reset! game-loop-id (js/setTimeout game-loop 33))
+      ;; Desktop: 60fps for smooth gameplay
+      (reset! game-loop-id (js/requestAnimationFrame game-loop)))))
 
 (defn start-game []
   (debug-log "🚀 AUTHENTIC SPACE INVADERS - 5×11 Formation with Tiered Scoring!")
   (debug-log "💯 Features: 55 invaders, 10/20/30 point scoring, UFO mystery ships, destructible barriers")
   (debug-log "🎵 NEW: Authentic heartbeat audio that speeds up as invaders are destroyed!")
-  (let [is-mobile (< (.-innerWidth js/window) 768)]
+
+  ;; Detect device type for performance optimization
+  (detect-mobile-device)
+
+  (let [is-mobile @mobile-device]
     (when is-mobile
-      (debug-log "📱 MOBILE MODE: Performance optimizations enabled"))
+      (debug-log "📱 MOBILE MODE: 30fps + performance optimizations enabled"))
+
     (init-audio) ;; Initialize sound
     (reset! game-state {:player {:x 380 :y 550}
                         :bullets []
@@ -995,7 +1023,13 @@
                         :is-mobile is-mobile ;; Set mobile detection
                         :frame-skip 0 ;; Mobile frame skipping
                         :reduced-effects is-mobile}) ;; Enable reduced effects on mobile
-    (when @game-loop-id (js/cancelAnimationFrame @game-loop-id))
+
+    ;; Stop any existing game loop
+    (when @game-loop-id
+      (if is-mobile
+        (js/clearTimeout @game-loop-id)
+        (js/cancelAnimationFrame @game-loop-id)))
+
     (setup-global-key-listeners)
     (game-loop)))
 
