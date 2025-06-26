@@ -11,7 +11,7 @@
 (def invader-height 20)
 (def bullet-width 8)
 (def bullet-height 20)
-(def bullet-speed 8)
+(def bullet-speed 6)
 (def invader-speed 0.1)
 
 ;; Enhanced game state with lives, levels, and effects
@@ -593,8 +593,9 @@
                  (filter #(< (:y %) game-height)))))) ;; Remove off-screen bullets 
 
 (defn move-invaders [state]
-  (let [move-speed (* 2 (+ 1 (* 0.3 (dec (:level state))))) ;; Horizontal speed increases with level
-        move-interval (max 5 (- 20 (* 2 (:level state)))) ;; Move faster as level increases
+  (let [;; Faster invader movement for better game balance
+        move-speed (* 2 (+ 1 (* 0.3 (dec (:level state))))) ;; 2-3 pixels per movement
+        move-interval (max 8 (- 15 (* 1 (:level state)))) ;; 15 frames between movements (4x faster)
         timer (:invader-move-timer state)
         direction (:invader-direction state)
         invaders (:invaders state)]
@@ -892,37 +893,36 @@
     state
     (let [is-mobile (:is-mobile state)]
       (if is-mobile
-        ;; Mobile: Optimized update with reduced processing
+        ;; Mobile: Optimized update with reduced processing for non-critical systems
         (let [frame (:frame state)
-              ;; Process every other frame for some heavy operations
-              process-heavy (= (mod frame 2) 0)]
+              ;; Process heavy visual effects every other frame, but keep gameplay smooth
+              process-visual-effects (= (mod frame 2) 0)]
           (-> state
               (update :frame inc)
-              ;; Always process essential gameplay
+              ;; Always process ALL essential gameplay for smooth experience
               process-continuous-movement
               move-bullets
               move-invader-bullets
+              move-invaders ;; Always process invader movement
+              fire-invader-bullet ;; Always process invader shooting
+              spawn-ufo ;; Always process UFO spawning
+              move-ufo ;; Always process UFO movement
+              process-barrier-collisions ;; Always process collisions
+              check-bullet-invader-collisions
+              check-bullet-ufo-collision
+              check-invader-bullet-player-collisions
+              check-level-completion
+              check-player-collision
 
-              ;; Conditionally process heavy operations every other frame
-              (#(if process-heavy
-                  (-> %
-                      move-invaders
-                      fire-invader-bullet
-                      spawn-ufo
-                      move-ufo
-                      process-barrier-collisions
-                      check-bullet-invader-collisions
-                      check-bullet-ufo-collision
-                      check-invader-bullet-player-collisions
-                      check-level-completion
-                      check-player-collision)
+              ;; Only optimize visual effects processing
+              (#(if process-visual-effects
+                  (-> % update-explosions update-particles)
                   %))
 
-              ;; Always update visual effects but limit particles
-              update-explosions
-              (#(if (< (count (:particles %)) 20) ; Limit particles on mobile
-                  (update-particles %)
-                  (assoc % :particles (take 15 (:particles %)))))
+              ;; Limit particles on mobile for memory management
+              (#(if (> (count (:particles %)) 20)
+                  (assoc % :particles (take 15 (:particles %)))
+                  %))
 
               ;; Play heartbeat less frequently on mobile (every 4th frame)
               (#(do (when (and (should-play-heartbeat? %)
@@ -965,10 +965,22 @@
   "Detect if device is mobile/touch-based for performance optimization"
   (let [user-agent (.-userAgent js/navigator)
         has-touch (> (.-maxTouchPoints js/navigator) 0)
-        pointer-coarse (.matchMedia js/window "(pointer: coarse)")
-        small-screen (< (.-innerWidth js/window) 768)]
-    (reset! mobile-device (or has-touch (.-matches pointer-coarse) small-screen))
-    (debug-log (str "📱 Device detection: Mobile=" @mobile-device " | Touch=" has-touch " | Small=" small-screen))
+        pointer-coarse (and (.matchMedia js/window "(pointer: coarse)")
+                            (.-matches (.matchMedia js/window "(pointer: coarse)")))
+        ;; Only consider screen size for mobile if we also have touch capabilities
+        small-screen-with-touch (and has-touch (< (.-innerWidth js/window) 768))
+        ;; Check user agent for mobile indicators as additional verification
+        mobile-user-agent (or (.includes user-agent "Mobile")
+                              (.includes user-agent "Android")
+                              (.includes user-agent "iPhone")
+                              (.includes user-agent "iPad"))]
+    (reset! mobile-device (and (or has-touch pointer-coarse mobile-user-agent)
+                               (or small-screen-with-touch pointer-coarse mobile-user-agent)))
+    (debug-log (str "📱 Device detection: Mobile=" @mobile-device
+                    " | Touch=" has-touch
+                    " | PointerCoarse=" pointer-coarse
+                    " | SmallScreen=" (< (.-innerWidth js/window) 768)
+                    " | MobileUA=" mobile-user-agent))
     @mobile-device))
 
 (defn game-loop []
@@ -987,9 +999,7 @@
   (debug-log "🎵 NEW: Authentic heartbeat audio that speeds up as invaders are destroyed!")
 
   ;; Detect device type for performance optimization
-  (detect-mobile-device)
-
-  (let [is-mobile @mobile-device]
+  (let [is-mobile (detect-mobile-device)]
     (when is-mobile
       (debug-log "📱 MOBILE MODE: 30fps + performance optimizations enabled"))
 
@@ -1020,7 +1030,7 @@
                         :bullets-fired-this-level 0
                         :barriers (initialize-barriers)
                         :keys-pressed #{}
-                        :is-mobile is-mobile ;; Set mobile detection
+                        :is-mobile is-mobile ;; Use the sophisticated mobile detection
                         :frame-skip 0 ;; Mobile frame skipping
                         :reduced-effects is-mobile}) ;; Enable reduced effects on mobile
 
