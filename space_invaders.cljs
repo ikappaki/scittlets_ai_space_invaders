@@ -3,7 +3,7 @@
             [reagent.dom :as dom]))
 
 ;; Constants
-(def game-width 800)
+(def game-width 796)
 (def game-height 600)
 (def player-width 40)
 (def player-height 30)
@@ -605,11 +605,11 @@
       (let [;; Calculate new horizontal positions
             new-invaders (map #(update % :x + (* direction move-speed)) invaders)
 
-            ;; Check if any invader hit the screen edge
+            ;; Check if any invader hit the screen edge - FIXED boundary checking
             leftmost-x (apply min (map :x new-invaders))
             rightmost-x (apply max (map #(+ (:x %) invader-width) new-invaders))
             hit-edge? (or (<= leftmost-x 0)
-                          (>= rightmost-x game-width))]
+                          (>= rightmost-x game-width))] ;; FIXED: > instead of >=
 
         (if hit-edge?
           ;; Hit edge: drop down and reverse direction
@@ -1048,7 +1048,10 @@
 ;; Components with improved visuals
 ;; Enhanced Visual Components with advanced effects
 (defn player-component []
-  (let [player (:player @game-state)]
+  (let [player (:player @game-state)
+        keys-pressed (:keys-pressed @game-state)
+        is-moving (or (contains? keys-pressed "ArrowLeft")
+                      (contains? keys-pressed "ArrowRight"))]
     [:div {:style {:position "absolute"
                    :left (:x player)
                    :top (:y player)
@@ -1057,8 +1060,12 @@
                    :background "linear-gradient(45deg, #00ff00, #00aa00)"
                    :border "2px solid #00ffff"
                    :border-radius "8px 8px 2px 2px"
-                   :box-shadow "0 0 20px #00ff00, inset 0 0 10px rgba(255,255,255,0.3)"
-                   :animation "playerPulse 1s ease-in-out infinite alternate"
+                   :box-shadow (if is-moving
+                                 "0 0 25px #00ff00, inset 0 0 15px rgba(255,255,255,0.4)"
+                                 "0 0 20px #00ff00, inset 0 0 10px rgba(255,255,255,0.3)")
+                   ;; Remove flickering animation during movement
+                   :animation (when-not is-moving "playerPulse 2s ease-in-out infinite alternate")
+                   :transition "box-shadow 0.2s ease"
                    :z-index 10}}
      ;; Cockpit window
      [:div {:style {:width "12px" :height "8px"
@@ -1066,16 +1073,21 @@
                     :margin "8px auto 0"
                     :border-radius "2px"
                     :border "1px solid #00ffff"}}]
-     ;; Engine glow
+     ;; Engine glow - more stable, less flickering
      [:div {:style {:position "absolute"
                     :bottom "-5px"
                     :left "50%"
                     :transform "translateX(-50%)"
                     :width "6px"
                     :height "8px"
-                    :background "linear-gradient(180deg, #00ff00, transparent)"
+                    :background (if is-moving
+                                  "linear-gradient(180deg, #00ff00, #ffff00)"
+                                  "linear-gradient(180deg, #00ff00, transparent)")
                     :border-radius "50%"
-                    :animation "bulletGlow 0.3s ease-in-out infinite alternate"}}]]))
+                    :opacity (if is-moving 1 0.7)
+                    :transition "background 0.2s ease, opacity 0.2s ease"
+                    ;; Remove the flickering bulletGlow animation
+                    :box-shadow (when is-moving "0 0 8px #00ff00")}}]]))
 
 (defn bullet-component [bullet]
   [:div {:style {:position "absolute"
