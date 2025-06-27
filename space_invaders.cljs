@@ -914,22 +914,74 @@
     ;; Default case - ignore unknown keys
     nil))
 
+(defonce event-listeners (atom {}))
+
 (defn setup-global-key-listeners []
-  "Setup global keyboard event listeners for continuous movement"
-  (.addEventListener js/document "keydown"
-                     (fn [e]
-                       (when-not (:game-over @game-state)
-                         (.preventDefault e) ; Prevent scrolling, etc.
-                         (handle-key-down (.-key e)))))
-  (.addEventListener js/document "keyup"
-                     (fn [e]
-                       (when-not (:game-over @game-state)
-                         (handle-key-up (.-key e))))))
+  "Setup global keyboard and touch event listeners for game control and viewport locking"
+  ;; Store listener functions for later cleanup
+  (let [keydown-fn (fn [e]
+                     (when-not (:game-over @game-state)
+                       (.preventDefault e) ; Prevent scrolling, etc.
+                       (handle-key-down (.-key e))))
+        keyup-fn (fn [e]
+                   (when-not (:game-over @game-state)
+                     (handle-key-up (.-key e))))
+        touchstart-fn (fn [e]
+                        ;; Allow touch events on game control buttons, prevent everywhere else
+                        (let [target (.-target e)
+                              is-control-button (.closest target ".touch-button")]
+                          (when-not is-control-button
+                            (.preventDefault e))))
+        touchmove-fn (fn [e]
+                       ;; Always prevent touch move to stop scrolling/zooming
+                       (.preventDefault e))
+        touchend-fn (fn [e]
+                      ;; Allow touch end events but prevent default behaviors
+                      (let [target (.-target e)
+                            is-control-button (.closest target ".touch-button")]
+                        (when-not is-control-button
+                          (.preventDefault e))))
+        gesturestart-fn #(.preventDefault %)
+        gesturechange-fn #(.preventDefault %)
+        gestureend-fn #(.preventDefault %)
+        contextmenu-fn #(.preventDefault %)]
+
+    ;; Store references for cleanup
+    (reset! event-listeners
+            {:keydown keydown-fn
+             :keyup keyup-fn
+             :touchstart touchstart-fn
+             :touchmove touchmove-fn
+             :touchend touchend-fn
+             :gesturestart gesturestart-fn
+             :gesturechange gesturechange-fn
+             :gestureend gestureend-fn
+             :contextmenu contextmenu-fn})
+
+    ;; Add event listeners
+    (.addEventListener js/document "keydown" keydown-fn)
+    (.addEventListener js/document "keyup" keyup-fn)
+    (.addEventListener js/document "touchstart" touchstart-fn #js {:passive false})
+    (.addEventListener js/document "touchmove" touchmove-fn #js {:passive false})
+    (.addEventListener js/document "touchend" touchend-fn #js {:passive false})
+    (.addEventListener js/document "gesturestart" gesturestart-fn #js {:passive false})
+    (.addEventListener js/document "gesturechange" gesturechange-fn #js {:passive false})
+    (.addEventListener js/document "gestureend" gestureend-fn #js {:passive false})
+    (.addEventListener js/document "contextmenu" contextmenu-fn #js {:passive false})))
 
 (defn remove-global-key-listeners []
-  "Remove global keyboard event listeners"
-  (.removeEventListener js/document "keydown" handle-key-down)
-  (.removeEventListener js/document "keyup" handle-key-up))
+  "Remove global keyboard and touch event listeners"
+  (let [listeners @event-listeners]
+    (.removeEventListener js/document "keydown" (:keydown listeners))
+    (.removeEventListener js/document "keyup" (:keyup listeners))
+    (.removeEventListener js/document "touchstart" (:touchstart listeners))
+    (.removeEventListener js/document "touchmove" (:touchmove listeners))
+    (.removeEventListener js/document "touchend" (:touchend listeners))
+    (.removeEventListener js/document "gesturestart" (:gesturestart listeners))
+    (.removeEventListener js/document "gesturechange" (:gesturechange listeners))
+    (.removeEventListener js/document "gestureend" (:gestureend listeners))
+    (.removeEventListener js/document "contextmenu" (:contextmenu listeners))
+    (reset! event-listeners {})))
 
 (defn move-player
   ([state direction]
@@ -1621,53 +1673,41 @@
     [:div {:class "touch-button"
            :on-touch-start (fn [e]
                              (.preventDefault e)
-                             (.stopPropagation e)
                              (handle-key-down "ArrowLeft"))
            :on-touch-end (fn [e]
                            (.preventDefault e)
-                           (.stopPropagation e)
                            (handle-key-up "ArrowLeft"))
            :on-touch-cancel (fn [e]
                               (.preventDefault e)
-                              (.stopPropagation e)
                               (handle-key-up "ArrowLeft"))
            :on-mouse-down (fn [e]
                             (.preventDefault e)
-                            (.stopPropagation e)
                             (handle-key-down "ArrowLeft"))
            :on-mouse-up (fn [e]
                           (.preventDefault e)
-                          (.stopPropagation e)
                           (handle-key-up "ArrowLeft"))
            :on-mouse-leave (fn [e]
                              (.preventDefault e)
-                             (.stopPropagation e)
                              (handle-key-up "ArrowLeft"))}
      "←"]
     [:div {:class "touch-button"
            :on-touch-start (fn [e]
                              (.preventDefault e)
-                             (.stopPropagation e)
                              (handle-key-down "ArrowRight"))
            :on-touch-end (fn [e]
                            (.preventDefault e)
-                           (.stopPropagation e)
                            (handle-key-up "ArrowRight"))
            :on-touch-cancel (fn [e]
                               (.preventDefault e)
-                              (.stopPropagation e)
                               (handle-key-up "ArrowRight"))
            :on-mouse-down (fn [e]
                             (.preventDefault e)
-                            (.stopPropagation e)
                             (handle-key-down "ArrowRight"))
            :on-mouse-up (fn [e]
                           (.preventDefault e)
-                          (.stopPropagation e)
                           (handle-key-up "ArrowRight"))
            :on-mouse-leave (fn [e]
                              (.preventDefault e)
-                             (.stopPropagation e)
                              (handle-key-up "ArrowRight"))}
      "→"]]
 
@@ -1676,12 +1716,24 @@
     [:div {:class "touch-button"
            :on-touch-start (fn [e]
                              (.preventDefault e)
-                             (.stopPropagation e)
-                             (swap! game-state fire-bullet))
+                             (when-not (contains? (:keys-pressed @game-state) " ")
+                               (swap! game-state assoc :keys-pressed
+                                      (conj (or (:keys-pressed @game-state) #{}) " "))
+                               (swap! game-state fire-bullet)))
+           :on-touch-end (fn [e]
+                           (.preventDefault e)
+                           (swap! game-state assoc :keys-pressed
+                                  (disj (or (:keys-pressed @game-state) #{}) " ")))
+           :on-touch-cancel (fn [e]
+                              (.preventDefault e)
+                              (swap! game-state assoc :keys-pressed
+                                     (disj (or (:keys-pressed @game-state) #{}) " ")))
            :on-click (fn [e]
                        (.preventDefault e)
-                       (.stopPropagation e)
-                       (swap! game-state fire-bullet))}
+                       (when-not (contains? (:keys-pressed @game-state) " ")
+                         (swap! game-state assoc :keys-pressed
+                                (conj (or (:keys-pressed @game-state) #{}) " "))
+                         (swap! game-state fire-bullet)))}
      "FIRE"]]])
 
 (defn init []
