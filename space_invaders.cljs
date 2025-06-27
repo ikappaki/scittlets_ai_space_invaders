@@ -37,6 +37,8 @@
     :invader-direction 1
     :invader-move-timer 0
     :invader-drop-distance 20
+    :invader-dropping false
+    :invader-drop-progress 0
     :invader-shoot-timer 0
     :invader-shoot-interval 120
     :ufo nil ;; UFO mystery ship (nil when not active)
@@ -577,33 +579,58 @@
         frame-rate-multiplier (if (:is-mobile state) 2.0 1.0) ;; 2x speed on mobile to compensate for 30fps
         move-speed (* base-speed level-multiplier frame-rate-multiplier)
         direction (:invader-direction state)
-        invaders (:invaders state)]
+        invaders (:invaders state)
 
-    ;; Move invaders every frame for smooth movement
-    (let [;; Calculate new horizontal positions with smooth movement
-          new-invaders (map #(update % :x + (* direction move-speed)) invaders)
+        ;; Smooth drop animation variables
+        is-dropping (:invader-dropping state)
+        drop-progress (:invader-drop-progress state)
+        drop-speed 2.0] ;; Pixels per frame during drop
 
-          ;; Check if any invader hit the screen edge
-          leftmost-x (apply min (map :x new-invaders))
-          rightmost-x (apply max (map #(+ (:x %) invader-width) new-invaders))
-          hit-edge? (or (<= leftmost-x 0)
-                        (>= rightmost-x game-width))]
-
-      (if hit-edge?
-        ;; Hit edge: drop down and reverse direction
-        (do
-          (try
-            (play-hit-sound) ;; Sound when invaders change direction
-            (catch js/Error e
-              (comment "Audio error:" e)))
+    (cond
+      ;; Currently dropping - continue smooth drop animation
+      is-dropping
+      (let [new-progress (+ drop-progress drop-speed)
+            target-drop (:invader-drop-distance state)
+            still-dropping (< new-progress target-drop)]
+        (if still-dropping
+          ;; Continue dropping
           (-> state
-              (assoc :invaders (map #(update % :y + (:invader-drop-distance state)) invaders))
-              (update :invader-direction -) ;; Reverse direction
-              add-screen-shake))
+              (assoc :invaders (map #(update % :y + drop-speed) invaders))
+              (assoc :invader-drop-progress new-progress))
+          ;; Finished dropping - resume horizontal movement
+          (-> state
+              (assoc :invaders (map #(update % :y + (- target-drop drop-progress)) invaders))
+              (assoc :invader-dropping false)
+              (assoc :invader-drop-progress 0))))
 
-        ;; Normal horizontal movement - smooth every frame
-        (-> state
-            (assoc :invaders new-invaders))))))
+      ;; Normal horizontal movement
+      :else
+      (let [;; Calculate new horizontal positions with smooth movement
+            new-invaders (map #(update % :x + (* direction move-speed)) invaders)
+
+            ;; Check if any invader hit the screen edge
+            leftmost-x (apply min (map :x new-invaders))
+            rightmost-x (apply max (map #(+ (:x %) invader-width) new-invaders))
+            hit-edge? (or (<= leftmost-x 0)
+                          (>= rightmost-x game-width))]
+
+        (if hit-edge?
+          ;; Hit edge: start smooth drop animation and reverse direction
+          (do
+            (try
+              (play-hit-sound) ;; Sound when invaders change direction
+              (catch js/Error e
+                (comment "Audio error:" e)))
+            (-> state
+                (assoc :invaders invaders) ;; Keep current position, start dropping next frame
+                (update :invader-direction -) ;; Reverse direction
+                (assoc :invader-dropping true) ;; Start drop animation
+                (assoc :invader-drop-progress 0) ;; Reset drop progress
+                add-screen-shake))
+
+          ;; Normal horizontal movement - smooth every frame
+          (-> state
+              (assoc :invaders new-invaders)))))))
 
 (defn move-bullets [state]
   (let [old-bullets (:bullets state)
@@ -1052,6 +1079,8 @@
                         :invader-direction 1
                         :invader-move-timer 0
                         :invader-drop-distance 20
+                        :invader-dropping false
+                        :invader-drop-progress 0
                         :invader-shoot-timer 0
                         :invader-shoot-interval 120
                         :ufo nil ;; UFO mystery ship
