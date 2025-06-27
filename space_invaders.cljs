@@ -1514,49 +1514,57 @@
       [:div {:style {:position "absolute"
                      :top "80px"
                      :left "10px"
-                     :color "#888"
+                     :color "#ccc"
                      :font-family "monospace"
-                     :font-size "10px"
-                     :background "rgba(0,0,0,0.8)"
-                     :padding "8px"
-                     :border-radius "3px"
-                     :border "1px solid #333"
+                     :font-size "12px"
+                     :background "rgba(0,0,0,0.9)"
+                     :padding "10px"
+                     :border-radius "5px"
+                     :border "1px solid #00ffff"
                      :z-index 100
-                     :max-width "150px"}}
+                     :max-width "200px"
+                     :box-shadow "0 0 8px rgba(0,255,255,0.3)"}}
        [:div {:style {:color "#00ffff"
-                      :font-size "9px"
+                      :font-size "13px"
                       :font-weight "bold"
-                      :margin-bottom "4px"}}
+                      :margin-bottom "6px"
+                      :text-shadow "0 0 5px #00ffff"}}
         "🎮 CONTROLS"]
-       [:div {:style {:font-size "9px" :line-height "1.3"}}
+       [:div {:style {:font-size "11px" :line-height "1.4" :color "#fff"}}
         "← → Move" [:br]
         "SPACE Fire" [:br]
-        "Click to start audio"]]
+        "Click for Audio" [:br]
+        [:div {:style {:margin-top "5px" :font-size "10px" :color "#ffaa00"}}
+         "💡 Destroy all invaders!"]]]
 
       ;; Debug panel (smaller, less intrusive)
       [:div {:style {:position "absolute"
                      :top "80px"
                      :right "10px"
-                     :color "#666"
+                     :color "#ccc"
                      :font-family "monospace"
-                     :font-size "9px"
-                     :background "rgba(0,0,0,0.7)"
-                     :padding "4px"
-                     :border-radius "3px"
+                     :font-size "11px"
+                     :background "rgba(0,0,0,0.9)"
+                     :padding "8px"
+                     :border-radius "4px"
+                     :border "1px solid #00ff00"
                      :z-index 100
-                     :max-width "200px"}}
-       [:div {:style {:margin-bottom "2px"
-                      :color "#888"
-                      :font-size "8px"}}
-        "Live REPL development in browser"]
-       [:div {:style {:font-size "8px"}}
-        "F:" (:frame state) " PB:" (count (:bullets state)) " IB:" (count (:invader-bullets state)) " I:" (count (:invaders state)) " E:" (count (:explosions state))]
-       [:div {:style {:font-size "8px"}}
-        "Audio: " (if @audio-context
-                    (if (= (.-state @audio-context) "running") "🔊" "⚠️")
-                    "⚪")
-        " | Dir: " (if (= (:invader-direction state) 1) "→" "←")
-        " | ST: " (:invader-shoot-timer state)]]
+                     :max-width "250px"
+                     :box-shadow "0 0 8px rgba(0,255,0,0.3)"}}
+       [:div {:style {:margin-bottom "4px"
+                      :color "#00ff00"
+                      :font-size "12px"
+                      :font-weight "bold"
+                      :text-shadow "0 0 5px #00ff00"}}
+        "📡 DEBUG"]
+       [:div {:style {:font-size "10px" :color "#aaa" :margin-bottom "3px"}}
+        "Live REPL in browser"]
+       [:div {:style {:font-size "10px" :color "#ffaa00" :margin-bottom "2px"}}
+        "F:" (:frame state) " L:" (:level state) " A:" (if @audio-context (if (= (.-state @audio-context) "running") "🔊" "⚠️") "⚪")]
+       [:div {:style {:font-size "10px" :color "#00ffff" :margin-bottom "2px"}}
+        "PB:" (count (:bullets state)) " IB:" (count (:invader-bullets state)) " I:" (count (:invaders state))]
+       [:div {:style {:font-size "10px" :color "#ffff00"}}
+        "Dir:" (if (= (:invader-direction state) 1) "→" "←") " E:" (count (:explosions state))]]
 
       ;; Game over overlay with enhanced styling
       (when (:game-over state)
