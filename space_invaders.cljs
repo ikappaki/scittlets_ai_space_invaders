@@ -617,10 +617,10 @@
 
 ;; Collision detection
 (defn rectangles-collide? [bullet invader]
-  (and (< (:x bullet) (+ (:x invader) invader-width))
-       (> (+ (:x bullet) bullet-width) (:x invader))
-       (< (:y bullet) (+ (:y invader) invader-height))
-       (> (+ (:y bullet) bullet-height) (:y invader))))
+  (and (<= (:x bullet) (+ (:x invader) invader-width))
+       (>= (+ (:x bullet) bullet-width) (:x invader))
+       (<= (:y bullet) (+ (:y invader) invader-height))
+       (>= (+ (:y bullet) bullet-height) (:y invader))))
 
 (defn check-bullet-invader-collisions [state]
   (let [bullets (:bullets state)
