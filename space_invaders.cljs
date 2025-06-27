@@ -810,6 +810,7 @@
               (update :lives dec)
               (assoc :invaders (initialize-invaders (:level state)))
               (assoc :bullets [])
+              (assoc :barriers (initialize-barriers)) ;; Reset barriers - FIXED!
               (assoc :invader-direction 1) ;; Reset movement direction
               (assoc :invader-move-timer 0))) ;; Reset movement timer
         (do
