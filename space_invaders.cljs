@@ -658,8 +658,8 @@
               (recur (rest remaining-bullets)
                      (remove #{hit-invader} remaining-invaders)
                      surviving-bullets ;; Don't add this bullet to surviving
-                     (conj new-explosions (create-explosion (:x hit-invader) (:y hit-invader)))
-                     (concat new-particles (create-particles-for-platform (:x hit-invader) (:y hit-invader) 8))
+                     (conj new-explosions (create-explosion (+ (:x bullet) (/ bullet-width 2)) (+ (:y bullet) (/ bullet-height 2))))
+                     (concat new-particles (create-particles-for-platform (+ (:x bullet) (/ bullet-width 2)) (+ (:y bullet) (/ bullet-height 2)) 8))
                      (+ score-increase invader-score))) ; Use authentic tiered scoring
             ;; Bullet missed invaders - keep bullet
             (recur (rest remaining-bullets)
@@ -685,8 +685,8 @@
               (assoc :ufo nil) ;; Remove UFO
               (update :bullets #(remove #{hit-bullet} %)) ;; Remove bullet
               (update :score + ufo-score) ;; Add score
-              (update :explosions conj (create-explosion (:x ufo) (:y ufo))) ;; Explosion
-              (update :particles concat (create-particles-for-platform (+ (:x ufo) 20) (+ (:y ufo) 10) 12)) ;; More particles
+              (update :explosions conj (create-explosion (+ (:x hit-bullet) (/ bullet-width 2)) (+ (:y hit-bullet) (/ bullet-height 2)))) ;; Explosion
+              (update :particles concat (create-particles-for-platform (+ (:x hit-bullet) (/ bullet-width 2)) (+ (:y hit-bullet) (/ bullet-height 2)) 12)) ;; More particles
               add-screen-shake))
         state))
     state))
