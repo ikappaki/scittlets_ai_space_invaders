@@ -860,7 +860,10 @@
                        (conj (or (:keys-pressed @game-state) #{}) key))
     "ArrowRight" (swap! game-state assoc :keys-pressed
                         (conj (or (:keys-pressed @game-state) #{}) key))
-    " " (do
+    " " (when-not (contains? (:keys-pressed @game-state) " ")
+          ;; Only fire if space key wasn't already pressed (prevent auto-repeat)
+          (swap! game-state assoc :keys-pressed
+                 (conj (or (:keys-pressed @game-state) #{}) key))
           (swap! game-state fire-bullet))
     ;; Default case - ignore unknown keys
     nil))
@@ -872,6 +875,8 @@
                        (disj (or (:keys-pressed @game-state) #{}) key))
     "ArrowRight" (swap! game-state assoc :keys-pressed
                         (disj (or (:keys-pressed @game-state) #{}) key))
+    " " (swap! game-state assoc :keys-pressed
+               (disj (or (:keys-pressed @game-state) #{}) key))
     ;; Default case - ignore unknown keys
     nil))
 
