@@ -747,6 +747,53 @@
           (assoc :bullets-fired-this-level 0))) ;; Reset bullet count for UFO scoring
     state))
 
+(defn check-invader-barrier-collisions [state]
+  "Check if invaders hit barriers and damage them"
+  (let [invaders (:invaders state)
+        barriers (:barriers state)
+        collisions (atom [])]
+
+    ;; Check each invader against each barrier
+    (doseq [invader invaders]
+      (doseq [barrier barriers]
+        (doseq [block (:blocks barrier)]
+          (when (and (not (:destroyed block))
+                     ;; Fixed collision detection - use >= for boundary edges
+                     (<= (:x invader) (+ (:x block) barrier-block-size))
+                     (>= (+ (:x invader) invader-width) (:x block))
+                     (<= (:y invader) (+ (:y block) barrier-block-size))
+                     (>= (+ (:y invader) invader-height) (:y block)))
+            ;; Collision detected! Store it
+            (swap! collisions conj {:x (:x block) :y (:y block)})))))
+
+    (if (seq @collisions)
+      ;; Process all collisions
+      (let [updated-barriers (reduce (fn [barriers collision]
+                                       (damage-barrier-at barriers
+                                                          (:x collision)
+                                                          (:y collision)
+                                                          15)) ;; Larger damage radius for invaders
+                                     barriers
+                                     @collisions)
+            ;; Create particles for visual feedback
+            new-particles (mapcat (fn [collision]
+                                    (create-particles-for-platform (:x collision) (:y collision) 6))
+                                  @collisions)]
+
+        ;; Play sound effect
+        (try
+          (play-hit-sound)
+          (catch js/Error e
+            (comment "Audio error:" e)))
+
+        (-> state
+            (assoc :barriers updated-barriers)
+            (update :particles concat new-particles)
+            add-screen-shake))
+
+      ;; No collisions
+      state)))
+
 (defn check-player-collision [state]
   (let [invaders (:invaders state)
         player (:player state)]
@@ -887,6 +934,7 @@
               check-bullet-ufo-collision
               check-invader-bullet-player-collisions
               check-level-completion
+              check-invader-barrier-collisions
               check-player-collision
 
               ;; Only optimize visual effects processing
@@ -926,6 +974,7 @@
             update-explosions
             update-particles
             check-level-completion
+            check-invader-barrier-collisions
             check-player-collision
             ;; Remove screen shake after a few frames (enabled on desktop)
             (#(if (and (:screen-shake %) (> (mod (:frame %) 10) 5))
