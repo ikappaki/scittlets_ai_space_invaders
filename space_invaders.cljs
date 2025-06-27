@@ -202,21 +202,33 @@
   {:x x :y y :frame 0 :id (random-uuid)})
 
 (defn update-particles [state]
-  (update state :particles
-          (fn [particles]
-            (->> particles
-                 (map (fn [p] (-> p
-                                  (update :x + (:vx p))
-                                  (update :y + (:vy p))
-                                  (update :life dec))))
-                 (filter #(> (:life %) 0))))))
+  (let [is-mobile (:is-mobile state)
+        ;; Compensate for mobile 30fps vs desktop 60fps
+        frame-rate-multiplier (if is-mobile 2.0 1.0)
+        life-decay-rate (* 1 frame-rate-multiplier)] ;; Faster decay on mobile to compensate
+
+    (update state :particles
+            (fn [particles]
+              (->> particles
+                   (map (fn [p] (-> p
+                                    ;; Movement with frame rate compensation
+                                    (update :x + (* (:vx p) frame-rate-multiplier))
+                                    (update :y + (* (:vy p) frame-rate-multiplier))
+                                    ;; Life decay with frame rate compensation
+                                    (update :life - life-decay-rate))))
+                   (filter #(> (:life %) 0)))))))
 
 (defn update-explosions [state]
-  (update state :explosions
-          (fn [explosions]
-            (->> explosions
-                 (map #(update % :frame inc))
-                 (filter #(< (:frame %) 15)))))) ;; Explosions last 15 frames
+  (let [is-mobile (:is-mobile state)
+        ;; Compensate for mobile 30fps vs desktop 60fps
+        frame-rate-multiplier (if is-mobile 2.0 1.0)
+        frame-increment (* 1 frame-rate-multiplier)] ;; Faster animation on mobile
+
+    (update state :explosions
+            (fn [explosions]
+              (->> explosions
+                   (map #(update % :frame + frame-increment))
+                   (filter #(< (:frame %) 15))))))) ;; Explosions last 15 frames
 
 (defn add-screen-shake [state]
   (assoc state :screen-shake true))
@@ -224,12 +236,7 @@
 (defn remove-screen-shake [state]
   (assoc state :screen-shake false))
 
-(defn update-explosions [state]
-  (update state :explosions
-          (fn [explosions]
-            (->> explosions
-                 (map #(update % :frame inc))
-                 (filter #(< (:frame %) 15)))))) ;; Explosions last 15 frames
+;; Explosions last 15 frames
 
 ;; Game logic
 (defn create-invader [x y]
