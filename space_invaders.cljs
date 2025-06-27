@@ -927,19 +927,21 @@
                    (when-not (:game-over @game-state)
                      (handle-key-up (.-key e))))
         touchstart-fn (fn [e]
-                        ;; Allow touch events on game control buttons, prevent everywhere else
+                        ;; Allow touch events on game control buttons and play again button, prevent everywhere else
                         (let [target (.-target e)
-                              is-control-button (.closest target ".touch-button")]
-                          (when-not is-control-button
+                              is-control-button (.closest target ".touch-button")
+                              is-play-again-button (.closest target ".neon-button")]
+                          (when-not (or is-control-button is-play-again-button)
                             (.preventDefault e))))
         touchmove-fn (fn [e]
                        ;; Always prevent touch move to stop scrolling/zooming
                        (.preventDefault e))
         touchend-fn (fn [e]
-                      ;; Allow touch end events but prevent default behaviors
+                      ;; Allow touch end events for control buttons and play again button
                       (let [target (.-target e)
-                            is-control-button (.closest target ".touch-button")]
-                        (when-not is-control-button
+                            is-control-button (.closest target ".touch-button")
+                            is-play-again-button (.closest target ".neon-button")]
+                        (when-not (or is-control-button is-play-again-button)
                           (.preventDefault e))))
         gesturestart-fn #(.preventDefault %)
         gesturechange-fn #(.preventDefault %)
@@ -1594,7 +1596,27 @@
                            :font-weight "bold"
                            :text-transform "uppercase"
                            :box-shadow "0 0 20px #00ff00"}
-                   :on-click #(do (init-audio) (start-game))}
+                   :on-click (fn [e]
+                               (.preventDefault e)
+                               (.stopPropagation e)
+                               (init-audio)
+                               (start-game))
+                   :on-touch-start (fn [e]
+                                     (.preventDefault e)
+                                     (.stopPropagation e))
+                   :on-touch-end (fn [e]
+                                   (.preventDefault e)
+                                   (.stopPropagation e)
+                                   (init-audio)
+                                   (start-game))
+                   :on-mouse-down (fn [e]
+                                    (.preventDefault e)
+                                    (.stopPropagation e))
+                   :on-mouse-up (fn [e]
+                                  (.preventDefault e)
+                                  (.stopPropagation e)
+                                  (init-audio)
+                                  (start-game))}
           "PLAY AGAIN"]])
 
       ;; Main game area
