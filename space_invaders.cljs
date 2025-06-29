@@ -289,15 +289,20 @@
            :row row))) ; Store the original row so appearance doesn't change
 
 (defn fire-bullet [state]
-  "Fire a bullet only if no bullets are currently on screen (authentic 1-bullet limit)"
+  "Fire a bullet from the center of the red triangle targeting system (authentic 1-bullet limit)"
   (let [current-frame (:frame state)
         last-fire (:last-fire-frame state)
         bullets (:bullets state)]
     (if (and (> (- current-frame last-fire) 10) ;; Debounce check
              (empty? bullets)) ;; AUTHENTIC: Only fire if no bullets on screen
       (let [player (:player state)
-            bullet-x (+ (:x player) (/ player-width 2))
-            bullet-y (- (:y player) 30)
+            is-mobile (:is-mobile state)
+            ;; Calculate red triangle CENTER position
+            triangle-visual-center-offset (if is-mobile -10 -5) ; Visual center
+            ;; Center the bullet on the triangle (account for bullet width)
+            bullet-center-x (+ (:x player) (/ player-width 2)) ; Triangle center X
+            bullet-x (- bullet-center-x (/ bullet-width 2)) ; Offset by half bullet width
+            bullet-y (+ (:y player) triangle-visual-center-offset) ; Triangle center Y
             bullet-id (:next-bullet-id state)
             new-bullet {:x bullet-x :y bullet-y :id bullet-id}
             bullets-fired (inc (:bullets-fired-this-level state))]
@@ -312,7 +317,6 @@
             (assoc :last-fire-frame current-frame)
             (assoc :bullets-fired-this-level bullets-fired))) ;; Track bullets for UFO scoring
       (do
-
         state))))
 
  ;; UFO Mystery Ship System
@@ -1166,7 +1170,8 @@
   (let [player (:player @game-state)
         keys-pressed (:keys-pressed @game-state)
         is-moving (or (contains? keys-pressed "ArrowLeft")
-                      (contains? keys-pressed "ArrowRight"))]
+                      (contains? keys-pressed "ArrowRight"))
+        is-mobile (:is-mobile @game-state)]
     [:div {:style {:position "absolute"
                    :left (:x player)
                    :top (:y player)
@@ -1179,7 +1184,7 @@
 
      ;; Castle fortress + targeting system combination
      [:div {:style {:position "relative"
-                    :font-size (if (:is-mobile @game-state) "36px" "20px")
+                    :font-size (if is-mobile "36px" "20px")
                     :line-height "1"
                     :color "#00ff00"
                     :filter "drop-shadow(0 0 8px #00ff00)"
@@ -1188,19 +1193,20 @@
                     :pointer-events "none"
                     :transition "filter 0.2s ease, transform 0.2s ease"
                     :transform (if is-moving "scale(1.1)" "scale(1)")}}
+      ;; Targeting system (red triangle positioned clearly above castle)
+      [:div {:style {:position "absolute"
+                     :top (if is-mobile "-18px" "-10px") ; Moved further up
+                     :left "50%"
+                     :transform "translateX(-50%)"
+                     :font-size (if is-mobile "16px" "10px") ; Slightly larger
+                     :color "#ff0000"
+                     :filter "drop-shadow(0 0 4px #ff0000)" ; Added glow
+                     :z-index 3}}
+       "🔺"]
       ;; Base fortress (castle represents the defensive structure)
       [:div {:style {:position "relative"
                      :z-index 1}}
-       "🏰"]
-      ;; Targeting system (red dot on the main tower)
-      [:div {:style {:position "absolute"
-                     :top "2px"
-                     :left "50%"
-                     :transform "translateX(-50%)"
-                     :font-size (if (:is-mobile @game-state) "14px" "8px")
-                     :color "#ff0000"
-                     :z-index 2}}
-       "🔺"]]])) ; Castle fortress with red targeting system
+       "🏰"]]])) ; Castle fortress with red targeting system
 
 (defn bullet-component [bullet]
   [:div {:style {:position "absolute"
