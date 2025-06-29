@@ -301,11 +301,11 @@
             is-moving (or (contains? keys-pressed "ArrowLeft")
                           (contains? keys-pressed "ArrowRight"))
             scale-factor (if is-moving 1.1 1.0)
-            triangle-base-offset (if is-mobile -10 -5)
+            triangle-base-offset -10
             triangle-scaled-offset (* triangle-base-offset scale-factor)
             bullet-center-x (+ (:x player) (/ player-width 2))
             bullet-x (- bullet-center-x (/ bullet-width 2))
-            bullet-y (+ (:y player) triangle-scaled-offset)
+            bullet-y (+ (:y player) triangle-scaled-offset (if is-mobile 8 5) (- bullet-height)) ; Start inside triangle
             bullet-id (:next-bullet-id state)
             new-bullet {:x bullet-x :y bullet-y :id bullet-id}
             bullets-fired (inc (:bullets-fired-this-level state))]
@@ -447,19 +447,21 @@
           (doseq [block (:blocks barrier)
                   :when (and (nil? @hit-barrier-block)
                              (not (:destroyed block)))]
-            ;; Simple point collision check - bullet center vs block bounds
-            (let [bullet-center-x (+ (:x bullet) 4) ; bullet center
-                  bullet-center-y (+ (:y bullet) 4) ; bullet center
+            ;; Rectangle overlap collision - bullet rectangle vs block rectangle
+            (let [bullet-left (:x bullet)
+                  bullet-right (+ (:x bullet) bullet-width)
+                  bullet-top (:y bullet)
+                  bullet-bottom (+ (:y bullet) bullet-height)
                   block-left (:x block)
                   block-right (+ (:x block) barrier-block-size)
                   block-top (:y block)
                   block-bottom (+ (:y block) barrier-block-size)]
 
-              ;; Check if bullet center is inside block
-              (when (and (>= bullet-center-x block-left)
-                         (<= bullet-center-x block-right)
-                         (>= bullet-center-y block-top)
-                         (<= bullet-center-y block-bottom))
+              ;; Check if rectangles overlap
+              (when (and (< bullet-left block-right)
+                         (> bullet-right block-left)
+                         (< bullet-top block-bottom)
+                         (> bullet-bottom block-top))
                 (reset! hit-barrier-block {:barrier barrier :block block :bullet bullet})))))
 
         (if @hit-barrier-block
@@ -1200,10 +1202,10 @@
                     :transform (if is-moving "scale(1.1)" "scale(1)")}}
       ;; Targeting system (red triangle positioned clearly above castle)
       [:div {:style {:position "absolute"
-                     :top (if is-mobile "-18px" "-10px") ; Moved further up
+                     :top "-18px" ; Moved further up
                      :left "50%"
                      :transform "translateX(-50%)"
-                     :font-size (if is-mobile "16px" "10px") ; Slightly larger
+                     :font-size "16px" ; Slightly larger
                      :color "#ff0000"
                      ;; Disable glow on mobile, conditional glow on desktop
                      :filter (when (and (not is-mobile) (not is-moving))
