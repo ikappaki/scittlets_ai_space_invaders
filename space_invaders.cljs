@@ -4,7 +4,7 @@
 
 ;; Constants
 (def game-width 796)
-(def game-height 600)
+(def game-height 408)
 (def player-width 40)
 (def player-height 30)
 (def invader-width 30)
@@ -19,7 +19,7 @@
 ;; State with lives system
 (defonce game-state
   (r/atom
-   {:player {:x 380 :y 550}
+   {:player {:x 380 :y 358}
     :bullets []
     :invader-bullets []
     :invaders []
@@ -49,7 +49,7 @@
     :barriers []
     :is-mobile (< (.-innerWidth js/window) 768) ;; Mobile detection
     :frame-skip 0 ;; Mobile frame skipping for performance
-    :reduced-effects false})) ;; Mobile reduced effects mode
+    :reduced-effects false})) ;; Mobile reduced effects mode ;; Mobile reduced effects mode
 
 ;; Audio System
  ;; Audio System  
@@ -251,7 +251,7 @@
 
 (defn get-invader-score [invader]
   "Calculate score for destroying an invader based on authentic tiered scoring"
-  (let [row (get-invader-row invader)]
+  (let [row (:row invader)] ; Use the stored row instead of calculating from position
     (case row
       0 30 ; Top row (small invaders)
       1 20 ; Second row (medium invaders)  
@@ -282,16 +282,11 @@
       10))) ; Default fallback
 
 (defn initialize-invaders [level]
-  "Create authentic 5x11 invader formation with proper spacing"
+  "Create authentic 5x11 invader formation with proper spacing and fixed row types"
   (for [row (range 5)
         col (range 11)] ; Changed from 10 to 11 columns for authenticity
-    (create-invader (+ 50 (* col 64)) (+ 30 (* row 35)))))
-
-(defn initialize-invaders [level]
-  "Create authentic 5x11 invader formation with proper spacing"
-  (for [row (range 5)
-        col (range 11)] ; Changed from 10 to 11 columns for authenticity
-    (create-invader (+ 50 (* col 64)) (+ 30 (* row 35)))))
+    (assoc (create-invader (+ 50 (* col 64)) (+ 30 (* row 35)))
+           :row row))) ; Store the original row so appearance doesn't change
 
 (defn fire-bullet [state]
   "Fire a bullet only if no bullets are currently on screen (authentic 1-bullet limit)"
@@ -324,7 +319,7 @@
 (def ufo-width 40)
 (def ufo-height 20)
 (def ufo-speed 2)
-(def ufo-y-position 50) ;; Fixed Y position at top of screen
+(def ufo-y-position 5) ;; Fixed Y position at top of screen
 
 (defn create-ufo [direction]
   "Create a UFO mystery ship that moves across the top of the screen"
@@ -411,7 +406,7 @@
 (defn initialize-barriers []
   "Create 4 barriers evenly spaced across the screen"
   (let [barrier-spacing (/ (- game-width (* barrier-count barrier-width)) (inc barrier-count))
-        barrier-y 430] ;; Position above player
+        barrier-y 280] ;; Optimal 30px gap: barrier-bottom(328) to player-top(358)
     (vec (for [i (range barrier-count)
                :let [barrier-x (+ barrier-spacing (* i (+ barrier-width barrier-spacing)))]]
            (create-barrier barrier-x barrier-y i)))))
@@ -832,7 +827,7 @@
   (let [invaders (:invaders state)
         player (:player state)]
     (cond
-      (some #(>= (:y %) (- (:y player) 50)) invaders)
+      (some #(>= (:y %) (- (:y player) 20)) invaders)
       (if (> (:lives state) 1)
         (do
           (comment (str "Lost a life! Lives remaining: " (dec (:lives state))))
@@ -1122,7 +1117,7 @@
       (comment "📱 MOBILE MODE: 30fps + performance optimizations enabled"))
 
     (init-audio) ;; Initialize sound
-    (reset! game-state {:player {:x 380 :y 550}
+    (reset! game-state {:player {:x 380 :y 358}
                         :bullets []
                         :invader-bullets []
                         :invaders (initialize-invaders 1)
@@ -1177,37 +1172,35 @@
                    :top (:y player)
                    :width player-width
                    :height player-height
-                   :background "linear-gradient(45deg, #00ff00, #00aa00)"
-                   :border "2px solid #00ffff"
-                   :border-radius "8px 8px 2px 2px"
-                   :box-shadow (if is-moving
-                                 "0 0 25px #00ff00, inset 0 0 15px rgba(255,255,255,0.4)"
-                                 "0 0 20px #00ff00, inset 0 0 10px rgba(255,255,255,0.3)")
-                   ;; Remove flickering animation during movement
-                   :animation (when-not is-moving "playerPulse 2s ease-in-out infinite alternate")
-                   :transition "box-shadow 0.2s ease"
+                   :display "flex"
+                   :align-items "center"
+                   :justify-content "center"
                    :z-index 10}}
-     ;; Cockpit window
-     [:div {:style {:width "12px" :height "8px"
-                    :background "rgba(255,255,255,0.8)"
-                    :margin "8px auto 0"
-                    :border-radius "2px"
-                    :border "1px solid #00ffff"}}]
-     ;; Engine glow - more stable, less flickering
-     [:div {:style {:position "absolute"
-                    :bottom "-5px"
-                    :left "50%"
-                    :transform "translateX(-50%)"
-                    :width "6px"
-                    :height "8px"
-                    :background (if is-moving
-                                  "linear-gradient(180deg, #00ff00, #ffff00)"
-                                  "linear-gradient(180deg, #00ff00, transparent)")
-                    :border-radius "50%"
-                    :opacity (if is-moving 1 0.7)
-                    :transition "background 0.2s ease, opacity 0.2s ease"
-                    ;; Remove the flickering bulletGlow animation
-                    :box-shadow (when is-moving "0 0 8px #00ff00")}}]]))
+
+     ;; Castle fortress + targeting system combination
+     [:div {:style {:position "relative"
+                    :font-size (if (:is-mobile @game-state) "36px" "20px")
+                    :line-height "1"
+                    :color "#00ff00"
+                    :filter "drop-shadow(0 0 8px #00ff00)"
+                    :animation (when-not is-moving "pulse 2s infinite")
+                    :user-select "none"
+                    :pointer-events "none"
+                    :transition "filter 0.2s ease, transform 0.2s ease"
+                    :transform (if is-moving "scale(1.1)" "scale(1)")}}
+      ;; Base fortress (castle represents the defensive structure)
+      [:div {:style {:position "relative"
+                     :z-index 1}}
+       "🏰"]
+      ;; Targeting system (red dot on the main tower)
+      [:div {:style {:position "absolute"
+                     :top "2px"
+                     :left "50%"
+                     :transform "translateX(-50%)"
+                     :font-size (if (:is-mobile @game-state) "14px" "8px")
+                     :color "#ff0000"
+                     :z-index 2}}
+       "🔺"]]])) ; Castle fortress with red targeting system
 
 (defn bullet-component [bullet]
   [:div {:style {:position "absolute"
@@ -1254,48 +1247,26 @@
                   :border-radius "50%"}}]])
 
 (defn ufo-component [ufo]
-  "UFO Mystery Ship component with classic design and glow effects"
+  "UFO Mystery Ship component with flying saucer emoji"
   [:div {:style {:position "absolute"
                  :left (:x ufo)
                  :top (:y ufo)
                  :width ufo-width
                  :height ufo-height
-                 :background "linear-gradient(45deg, #ff00ff, #aa00aa)"
-                 :border "2px solid #ffff00"
-                 :border-radius "50% 50% 20% 20%"
-                 :box-shadow "0 0 25px #ff00ff, inset 0 0 15px rgba(255,255,255,0.4)"
-                 :animation "pulse 1.5s infinite"
+                 :display "flex"
+                 :align-items "center"
+                 :justify-content "center"
                  :z-index 6}}
-   ;; UFO dome/cockpit
-   [:div {:style {:position "absolute"
-                  :top "2px"
-                  :left "50%"
-                  :transform "translateX(-50%)"
-                  :width "24px"
-                  :height "8px"
-                  :background "linear-gradient(45deg, #ffff00, #ffaa00)"
-                  :border "1px solid #fff"
-                  :border-radius "50%"
-                  :box-shadow "0 0 8px #ffff00"}}]
-   ;; UFO lights
-   [:div {:style {:position "absolute"
-                  :bottom "2px"
-                  :left "6px"
-                  :width "4px"
-                  :height "4px"
-                  :background "#00ffff"
-                  :border-radius "50%"
-                  :box-shadow "0 0 6px #00ffff"
-                  :animation "bulletGlow 0.8s infinite alternate"}}]
-   [:div {:style {:position "absolute"
-                  :bottom "2px"
-                  :right "6px"
-                  :width "4px"
-                  :height "4px"
-                  :background "#00ffff"
-                  :border-radius "50%"
-                  :box-shadow "0 0 6px #00ffff"
-                  :animation "bulletGlow 0.8s infinite alternate"}}]])
+
+   ;; Flying saucer emoji for the UFO mystery ship
+   [:div {:style {:font-size (if (:is-mobile @game-state) "38px" "32px") ; Large size for the mystery UFO
+                  :line-height "1"
+                  :color "#ff00ff"
+                  :filter "drop-shadow(0 0 12px #ff00ff)"
+                  :animation "pulse 1.5s infinite"
+                  :user-select "none"
+                  :pointer-events "none"}}
+    "🛸"]]) ; Flying saucer emoji for the mystery ship
 
 (defn barrier-component [barrier]
   "Destructible barrier component with pixel-perfect blocks"
@@ -1322,35 +1293,45 @@
                     :z-index 3}}])])
 
 (defn invader-component [invader]
-  (let [pulse-scale (+ 1 (* 0.05 (Math/sin (/ (:y invader) 20))))]
+  (let [row (:row invader) ; Use the stored row instead of calculating from position
+        invader-type (case row
+                       0 :squid ; Top row - 30 points
+                       (1 2) :crab ; Middle rows - 20 points  
+                       (3 4) :octopus) ; Bottom rows - 10 points
+
+        ;; Different characters and colors for each type - using more detailed Unicode symbols
+        [character color glow-color background-color] (case invader-type
+                                                        :squid ["🦑" "#00ff00" "#00ff00" "#001100"] ; Squid emoji - more detailed
+                                                        :crab ["🦀" "#ffff00" "#ffff00" "#221100"] ; Crab emoji - realistic  
+                                                        :octopus ["🐙" "#ff0000" "#ff0000" "#110000"]) ; Octopus emoji - detailed
+
+        ;; Simplified effects - reduce glow on mobile for cleaner look
+        is-mobile (:is-mobile @game-state)
+        pulse-scale (if is-mobile 1.0 (+ 1 (* 0.03 (Math/sin (/ (:y invader) 20)))))
+        glow-effect (if is-mobile "none" (str "drop-shadow(0 0 8px " glow-color ")"))
+        animation (if is-mobile "none" "pulse 2s infinite")]
+
+    ;; Simplified container - just position and size, no styling that could create borders
     [:div {:style {:position "absolute"
                    :left (:x invader)
                    :top (:y invader)
                    :width invader-width
                    :height invader-height
-                   :background "linear-gradient(45deg, #ff0000, #cc0000)"
-                   :border "2px solid #fff"
-                   :border-radius "4px"
-                   :box-shadow "0 0 15px #ff0000"
-                   :animation "pulse 2s infinite"
+                   :display "flex"
+                   :align-items "center"
+                   :justify-content "center"
                    :transform (str "scale(" pulse-scale ")")
                    :z-index 5}}
-     ;; Invader eyes
-     [:div {:style {:display "flex"
-                    :justify-content "space-around"
-                    :margin-top "3px"}}
-      [:div {:style {:width "3px" :height "3px"
-                     :background "#fff" :border-radius "50%"}}]
-      [:div {:style {:width "3px" :height "3px"
-                     :background "#fff" :border-radius "50%"}}]]
-     ;; Antenna
-     [:div {:style {:position "absolute"
-                    :top "-4px"
-                    :left "50%"
-                    :transform "translateX(-50%)"
-                    :width "2px"
-                    :height "6px"
-                    :background "linear-gradient(180deg, #fff, #ff0000)"}}]]))
+
+     ;; Clean mobile sprites - no glow effects on mobile for better visibility
+     [:div {:style {:font-size (if is-mobile "34px" "22px")
+                    :line-height "1"
+                    :color color
+                    :filter glow-effect
+                    :animation animation
+                    :user-select "none"
+                    :pointer-events "none"}}
+      character]]))
 
 (defn explosion-component [explosion]
   (let [frame (:frame explosion)
