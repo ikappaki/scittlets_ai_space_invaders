@@ -298,18 +298,14 @@
       (let [player (:player state)
             is-mobile (:is-mobile state)
             keys-pressed (:keys-pressed state)
-            ;; Check if player is moving (same logic as player-component)
             is-moving (or (contains? keys-pressed "ArrowLeft")
                           (contains? keys-pressed "ArrowRight"))
-            ;; Account for scaling when moving
             scale-factor (if is-moving 1.1 1.0)
-            ;; Calculate red triangle CENTER position with scaling
-            triangle-base-offset (if is-mobile -10 -5) ; Base visual center
-            triangle-scaled-offset (* triangle-base-offset scale-factor) ; Apply scaling
-            ;; Center the bullet on the scaled triangle position
-            bullet-center-x (+ (:x player) (/ player-width 2)) ; Triangle center X
-            bullet-x (- bullet-center-x (/ bullet-width 2)) ; Offset by half bullet width
-            bullet-y (+ (:y player) triangle-scaled-offset) ; Scaled triangle center Y
+            triangle-base-offset (if is-mobile -10 -5)
+            triangle-scaled-offset (* triangle-base-offset scale-factor)
+            bullet-center-x (+ (:x player) (/ player-width 2))
+            bullet-x (- bullet-center-x (/ bullet-width 2))
+            bullet-y (+ (:y player) triangle-scaled-offset)
             bullet-id (:next-bullet-id state)
             new-bullet {:x bullet-x :y bullet-y :id bullet-id}
             bullets-fired (inc (:bullets-fired-this-level state))]
