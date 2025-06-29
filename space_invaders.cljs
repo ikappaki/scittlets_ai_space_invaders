@@ -1364,8 +1364,13 @@
                    :z-index 8}}]))
 
 (defn lives-display [lives]
-  [:div {:style {:display "flex" :align-items "center" :margin-right "20px"}}
-   [:span {:style {:margin-right "10px" :color "#00ffff" :font-weight "bold"}} "LIVES:"]
+  [:div {:style {:display "flex"
+                 :align-items "center"
+                 :margin-right "20px"}}
+   [:span {:style {:margin-right "10px"
+                   :color "#00ffff"
+                   :font-weight "bold"}}
+    "LIVES:"]
    (for [i (range lives)]
      [:div {:key i
             :style {:width "25px"
@@ -1375,7 +1380,8 @@
                     :border-radius "4px"
                     :margin-left "3px"
                     :box-shadow "0 0 8px #00ff00"
-                    :animation "playerPulse 2s ease-in-out infinite alternate"}}])])
+                    :display "inline-block"
+                    :animation "playerPulse 2s ease-in-out infinite alternate"}}])]) ;; Add number inside each box
 
 ;; Gun barrel
 
@@ -1462,8 +1468,7 @@
         [:div {:class "score-display"
                :style {:color "#00ff00" :font-size "20px" :font-weight "bold"}}
          "SCORE: " (:score state)]
-        [:div {:class "mobile-lives"}
-         [lives-display (:lives state)]]
+        [lives-display (:lives state)]
         ;; Audio test button
         [:div {:class "audio-controls"
                :style {:display "flex" :gap "5px"}}
