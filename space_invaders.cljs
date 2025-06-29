@@ -1194,7 +1194,9 @@
                     :font-size (if is-mobile "36px" "20px")
                     :line-height "1"
                     :color "#00ff00"
-                    :filter "drop-shadow(0 0 8px #00ff00)"
+                    ;; Disable glow on mobile, conditional glow on desktop
+                    :filter (when (and (not is-mobile) (not is-moving))
+                              "drop-shadow(0 0 8px #00ff00)")
                     :animation (when-not is-moving "pulse 2s infinite")
                     :user-select "none"
                     :pointer-events "none"
@@ -1207,7 +1209,9 @@
                      :transform "translateX(-50%)"
                      :font-size (if is-mobile "16px" "10px") ; Slightly larger
                      :color "#ff0000"
-                     :filter "drop-shadow(0 0 4px #ff0000)" ; Added glow
+                     ;; Disable glow on mobile, conditional glow on desktop
+                     :filter (when (and (not is-mobile) (not is-moving))
+                               "drop-shadow(0 0 4px #ff0000)")
                      :z-index 3}}
        "🔺"]
       ;; Base fortress (castle represents the defensive structure)
