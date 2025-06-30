@@ -469,7 +469,7 @@
           (let [hit-info @hit-barrier-block
                 bullet-pos {:x (:x (:bullet hit-info)) :y (:y (:bullet hit-info))}]
             (comment (str "ðŸ’¥ BARRIER DAMAGED at " (:x bullet-pos) "," (:y bullet-pos)))
-            (swap! results update :barriers damage-barrier-at (:x bullet-pos) (:y bullet-pos) 10)
+            (swap! results update :barriers damage-barrier-at (:x bullet-pos) (:y bullet-pos) 15)
             (swap! results update :hits conj bullet-pos))
           ;; Bullet missed all barriers - keep it
           (swap! results update :bullets conj bullet))))
@@ -1029,8 +1029,9 @@
               move-ufo ;; Always process UFO movement
               process-barrier-collisions ;; Always process collisions
               check-bullet-invader-collisions
-              check-bullet-ufo-collision
-              check-invader-bullet-player-collisions
+              check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
+              check-invader-bullet-player-collisions ;; Invader bullets vs player
+              ;; Invader bullets vs barriers
               check-level-completion
               check-invader-barrier-collisions
               check-player-collision
@@ -1069,6 +1070,7 @@
             check-bullet-invader-collisions ;; Player bullets vs invaders  
             check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
             check-invader-bullet-player-collisions ;; Invader bullets vs player
+            ;; Invader bullets vs barriers
             update-explosions
             update-particles
             check-level-completion
