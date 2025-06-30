@@ -469,7 +469,10 @@
           (let [hit-info @hit-barrier-block
                 bullet-pos {:x (:x (:bullet hit-info)) :y (:y (:bullet hit-info))}]
             (comment (str "ðŸ’¥ BARRIER DAMAGED at " (:x bullet-pos) "," (:y bullet-pos)))
-            (swap! results update :barriers damage-barrier-at (:x bullet-pos) (:y bullet-pos) 15)
+            (let [block (:block hit-info)
+                  block-center-x (+ (:x block) (/ barrier-block-size 2))
+                  block-center-y (+ (:y block) (/ barrier-block-size 2))]
+              (swap! results update :barriers damage-barrier-at block-center-x block-center-y 15))
             (swap! results update :hits conj bullet-pos))
           ;; Bullet missed all barriers - keep it
           (swap! results update :bullets conj bullet))))
@@ -753,7 +756,7 @@
               (assoc :invader-bullets []) ;; Clear all invader bullets
               (assoc :bullets []) ;; Clear player bullets
               (assoc :invaders (initialize-invaders (:level state)))
-              (assoc :barriers (initialize-barriers)) ;; Reset barriers
+              ;; Reset barriers
               (assoc :invader-direction 1)
               (assoc :invader-move-timer 0)
               (assoc :invader-shoot-timer 0)
@@ -848,7 +851,7 @@
               (update :lives dec)
               (assoc :invaders (initialize-invaders (:level state)))
               (assoc :bullets [])
-              (assoc :barriers (initialize-barriers)) ;; Reset barriers - FIXED!
+              ;; Reset barriers - FIXED!
               (assoc :invader-direction 1) ;; Reset movement direction
               (assoc :invader-move-timer 0))) ;; Reset movement timer
         (do
