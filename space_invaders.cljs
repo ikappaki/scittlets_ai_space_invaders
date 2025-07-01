@@ -53,7 +53,20 @@
 
 ;; Audio System
  ;; Audio System  
+ ;; Audio System
 (defonce audio-context (atom nil))
+
+;; FPS tracking atoms
+ ;; FPS tracking atoms
+(defonce frame-count (atom 0))
+(defonce fps-display (atom 0))
+(defonce last-fps-update (atom 0))
+
+;; Speed tracking atoms
+ ;; Speed tracking atoms
+(defonce last-invader-pos (atom nil))
+(defonce invader-speed-display (atom 0))
+(defonce speed-update-counter (atom 0))
 
 (defn init-audio []
   (when (and js/window (.-AudioContext js/window))
@@ -579,7 +592,9 @@
   (update state :invader-bullets
           (fn [bullets]
             (let [;; Compensate for mobile 30fps vs desktop 60fps
-                  frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
+                          ;; Compensate for different frame rates to maintain consistent game speed
+                          ;; Compensate for mobile 30fps vs desktop 60fps  
+                  frame-rate-multiplier (if (:is-mobile state) 2.0 1.0) ; Desktop: scale based on actual fps 
                   invader-bullet-speed (* 5 frame-rate-multiplier)]
               (->> bullets
                    (map #(update % :y + invader-bullet-speed))
@@ -590,6 +605,8 @@
         base-speed 0.5 ;; Base speed in pixels per frame
         level-multiplier (+ 1 (* 0.2 (dec (:level state)))) ;; Slight speed increase per level
         ;; Compensate for mobile 30fps vs desktop 60fps
+                ;; Compensate for different frame rates to maintain consistent game speed
+                ;; Compensate for mobile 30fps vs desktop 60fps
         frame-rate-multiplier (if (:is-mobile state) 2.0 1.0) ;; 2x speed on mobile to compensate for 30fps
         move-speed (* base-speed level-multiplier frame-rate-multiplier)
         direction (:invader-direction state)
@@ -606,16 +623,28 @@
       (let [new-progress (+ drop-progress drop-speed)
             target-drop (:invader-drop-distance state)
             still-dropping (< new-progress target-drop)]
-        (if still-dropping
-          ;; Continue dropping
-          (-> state
-              (assoc :invaders (map #(update % :y + drop-speed) invaders))
-              (assoc :invader-drop-progress new-progress))
-          ;; Finished dropping - resume horizontal movement
-          (-> state
-              (assoc :invaders (map #(update % :y + (- target-drop drop-progress)) invaders))
-              (assoc :invader-dropping false)
-              (assoc :invader-drop-progress 0))))
+        (let [new-invaders (if still-dropping
+                             (map #(update % :y + drop-speed) invaders)
+                             (map #(update % :y + (- target-drop drop-progress)) invaders))
+              result-state (if still-dropping
+                             (-> state
+                                 (assoc :invaders new-invaders)
+                                 (assoc :invader-drop-progress new-progress))
+                             (-> state
+                                 (assoc :invaders new-invaders)
+                                 (assoc :invader-dropping false)
+                                 (assoc :invader-drop-progress 0)))]
+          ;; Track speed for dropping movement too
+          (when-let [first-invader (first new-invaders)]
+            (let [current-pos {:x (:x first-invader) :y (:y first-invader)}]
+              (when-let [last-pos @last-invader-pos]
+                (let [dx (- (:x current-pos) (:x last-pos))
+                      dy (- (:y current-pos) (:y last-pos))
+                      total-speed (Math/sqrt (+ (* dx dx) (* dy dy)))]
+                  (swap! speed-update-counter inc)
+                  (reset! invader-speed-display total-speed)))
+              (reset! last-invader-pos current-pos)))
+          result-state))
 
       ;; Normal horizontal movement
       :else
@@ -643,12 +672,24 @@
                 add-screen-shake))
 
           ;; Normal horizontal movement - smooth every frame
-          (-> state
-              (assoc :invaders new-invaders)))))))
+          (let [result-state (-> state (assoc :invaders new-invaders))]
+            ;; Track actual movement speed
+            (when-let [first-invader (first new-invaders)]
+              (let [current-pos {:x (:x first-invader) :y (:y first-invader)}]
+                (when-let [last-pos @last-invader-pos]
+                  (let [dx (- (:x current-pos) (:x last-pos))
+                        dy (- (:y current-pos) (:y last-pos))
+                        total-speed (Math/sqrt (+ (* dx dx) (* dy dy)))]
+                    (swap! speed-update-counter inc)
+                    (reset! invader-speed-display total-speed)))
+                (reset! last-invader-pos current-pos)))
+            result-state))))))
 
 (defn move-bullets [state]
   (let [old-bullets (:bullets state)
         ;; Compensate for mobile 30fps vs desktop 60fps
+                ;; Compensate for different frame rates to maintain consistent game speed
+                ;; Compensate for mobile 30fps vs desktop 60fps
         frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
         effective-bullet-speed (* bullet-speed frame-rate-multiplier)
         new-bullets (->> old-bullets
@@ -883,6 +924,8 @@
   "Process continuous movement while keys are held down"
   (let [keys (:keys-pressed state)
         ;; Compensate for mobile 30fps vs desktop 60fps
+                ;; Compensate for different frame rates to maintain consistent game speed
+                ;; Compensate for mobile 30fps vs desktop 60fps
         frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
         move-speed (* 4 frame-rate-multiplier)] ; Pixels per frame for continuous movement
     (cond
@@ -1111,14 +1154,23 @@
     @mobile-device))
 
 (defn game-loop []
-  "Game loop with adaptive frame rate - 30fps mobile, 60fps desktop"
-  (let [is-mobile @mobile-device]
+  "Game loop with fixed frame rates - 30fps mobile, 60fps desktop"
+  (let [is-mobile @mobile-device
+        current-time (js/Date.now)]
+
+    ;; Update FPS counter every second
+    (swap! frame-count inc)
+    (when (>= (- current-time @last-fps-update) 1000)
+      (reset! fps-display @frame-count)
+      (reset! frame-count 0)
+      (reset! last-fps-update current-time))
+
     (swap! game-state update-game)
     (if is-mobile
       ;; Mobile: 30fps for stable performance (33ms interval)
       (reset! game-loop-id (js/setTimeout game-loop 33))
-      ;; Desktop: 60fps for smooth gameplay
-      (reset! game-loop-id (js/requestAnimationFrame game-loop)))))
+      ;; Desktop: Fixed 60fps for consistent speed (16.67ms interval)
+      (reset! game-loop-id (js/setTimeout game-loop 16.67)))))
 
 (defn start-game []
   (comment "🚀 AUTHENTIC SPACE INVADERS - 5×11 Formation with Tiered Scoring!")
@@ -1566,11 +1618,23 @@
        [:div {:style {:font-size "10px" :color "#aaa" :margin-bottom "3px"}}
         "Live REPL in browser"]
        [:div {:style {:font-size "10px" :color "#ffaa00" :margin-bottom "2px"}}
-        "F:" (:frame state) " L:" (:level state) " A:" (if @audio-context (if (= (.-state @audio-context) "running") "🔊" "⚠️") "⚪")]
+        "FPS:" @fps-display " F:" (:frame state) " L:" (:level state) " A:" (if @audio-context (if (= (.-state @audio-context) "running") "🔊" "⚠️") "⚪")]
        [:div {:style {:font-size "10px" :color "#00ffff" :margin-bottom "2px"}}
         "PB:" (count (:bullets state)) " IB:" (count (:invader-bullets state)) " I:" (count (:invaders state))]
-       [:div {:style {:font-size "10px" :color "#ffff00"}}
-        "Dir:" (if (= (:invader-direction state) 1) "→" "←") " E:" (count (:explosions state))]]
+       [:div {:style {:font-size "10px" :color "#ffff00" :margin-bottom "2px"}}
+        "Dir:" (if (= (:invader-direction state) 1) "→" "←") " E:" (count (:explosions state))]
+       [:div {:style {:font-size "10px" :color "#ff66ff" :margin-bottom "2px"}}
+        "Speed:" (let [keys (:keys-pressed state)]
+                   (cond
+                     (contains? keys "ArrowLeft") "←"
+                     (contains? keys "ArrowRight") "→"
+                     :else "■"))
+        " Mult:" (if (:is-mobile state) "2.0x" "1.0x")]
+       [:div {:style {:font-size "10px" :color "#ff8800"}}
+        "InvSpd:" (str (.toFixed @invader-speed-display 3) "px/f")
+        " C:" @speed-update-counter
+        " " (let [is-dropping (:invader-dropping state)]
+              (if is-dropping "⬇" "→"))]]
 
       ;; Game over overlay with enhanced styling
       (when (:game-over state)
