@@ -68,6 +68,53 @@
 (defonce invader-speed-display (atom 0))
 (defonce speed-update-counter (atom 0))
 
+;; Dynamic frame rate compensation system
+(defonce frame-rate-tracker
+  (atom {:samples []
+         :max-samples 60 ; Track last 60 frames (~1 second)
+         :last-frame-time 0
+         :current-fps 60
+         :target-fps 60
+         :compensation-multiplier 1.0}))
+
+(defn update-frame-rate-tracking []
+  "Update frame rate tracking with current timing"
+  (let [current-time (js/performance.now)
+        last-time (:last-frame-time @frame-rate-tracker)
+        frame-time (if (> last-time 0) (- current-time last-time) 16.67)]
+
+    (swap! frame-rate-tracker
+           (fn [tracker]
+             (let [samples (conj (:samples tracker) frame-time)
+                   trimmed-samples (if (> (count samples) (:max-samples tracker))
+                                     (drop (- (count samples) (:max-samples tracker)) samples)
+                                     samples)
+                   avg-frame-time (if (seq trimmed-samples)
+                                    (/ (reduce + trimmed-samples) (count trimmed-samples))
+                                    16.67)
+                   current-fps (/ 1000 avg-frame-time)
+                   target-fps (:target-fps tracker)
+                   compensation (/ target-fps current-fps)]
+
+               (assoc tracker
+                      :samples trimmed-samples
+                      :last-frame-time current-time
+                      :current-fps current-fps
+                      :compensation-multiplier compensation))))))
+
+(defn get-dynamic-compensation []
+  "Get the current dynamic compensation multiplier"
+  (:compensation-multiplier @frame-rate-tracker))
+
+(defn get-frame-rate-info []
+  "Get current frame rate information for debugging"
+  (let [tracker @frame-rate-tracker]
+    {:current-fps (:current-fps tracker)
+     :target-fps (:target-fps tracker)
+     :compensation (:compensation-multiplier tracker)
+     :sample-count (count (:samples tracker))
+     :is-stable (> (count (:samples tracker)) 30)})) ; Stable after 30 samples
+
 (defn init-audio []
   (when (and js/window (.-AudioContext js/window))
     (try
@@ -216,26 +263,26 @@
 
 (defn update-particles [state]
   (let [is-mobile (:is-mobile state)
-        ;; Compensate for mobile 30fps vs desktop 60fps
-        frame-rate-multiplier (if is-mobile 2.0 1.0)
-        life-decay-rate (* 1 frame-rate-multiplier)] ;; Faster decay on mobile to compensate
+        ;; Dynamic compensation based on actual measured frame rate
+        dynamic-compensation (get-dynamic-compensation)
+        life-decay-rate (* 1 dynamic-compensation)] ;; Faster decay to compensate
 
     (update state :particles
             (fn [particles]
               (->> particles
                    (map (fn [p] (-> p
-                                    ;; Movement with frame rate compensation
-                                    (update :x + (* (:vx p) frame-rate-multiplier))
-                                    (update :y + (* (:vy p) frame-rate-multiplier))
-                                    ;; Life decay with frame rate compensation
+                                    ;; Movement with dynamic compensation
+                                    (update :x + (* (:vx p) dynamic-compensation))
+                                    (update :y + (* (:vy p) dynamic-compensation))
+                                    ;; Life decay with dynamic compensation
                                     (update :life - life-decay-rate))))
                    (filter #(> (:life %) 0)))))))
 
 (defn update-explosions [state]
   (let [is-mobile (:is-mobile state)
-        ;; Compensate for mobile 30fps vs desktop 60fps
-        frame-rate-multiplier (if is-mobile 2.0 1.0)
-        frame-increment (* 1 frame-rate-multiplier)] ;; Faster animation on mobile
+        ;; Dynamic compensation based on actual measured frame rate
+        dynamic-compensation (get-dynamic-compensation)
+        frame-increment (* 1 dynamic-compensation)] ;; Dynamic animation speed
 
     (update state :explosions
             (fn [explosions]
@@ -591,11 +638,9 @@
   "Move invader bullets downward and remove off-screen ones"
   (update state :invader-bullets
           (fn [bullets]
-            (let [;; Compensate for mobile 30fps vs desktop 60fps
-                          ;; Compensate for different frame rates to maintain consistent game speed
-                          ;; Compensate for mobile 30fps vs desktop 60fps  
-                  frame-rate-multiplier (if (:is-mobile state) 2.0 1.0) ; Desktop: scale based on actual fps 
-                  invader-bullet-speed (* 5 frame-rate-multiplier)]
+            (let [;; Dynamic compensation based on actual measured frame rate
+                  dynamic-compensation (get-dynamic-compensation)
+                  invader-bullet-speed (* 5 dynamic-compensation)]
               (->> bullets
                    (map #(update % :y + invader-bullet-speed))
                    (filter #(< (:y %) game-height))))))) ;; Remove off-screen bullets 
@@ -604,18 +649,16 @@
   (let [;; Smooth continuous movement - small steps every frame
         base-speed 0.5 ;; Base speed in pixels per frame
         level-multiplier (+ 1 (* 0.2 (dec (:level state)))) ;; Slight speed increase per level
-        ;; Compensate for mobile 30fps vs desktop 60fps
-                ;; Compensate for different frame rates to maintain consistent game speed
-                ;; Compensate for mobile 30fps vs desktop 60fps
-        frame-rate-multiplier (if (:is-mobile state) 2.0 1.0) ;; 2x speed on mobile to compensate for 30fps
-        move-speed (* base-speed level-multiplier frame-rate-multiplier)
+        ;; Dynamic compensation based on actual measured frame rate
+        dynamic-compensation (get-dynamic-compensation)
+        move-speed (* base-speed level-multiplier dynamic-compensation)
         direction (:invader-direction state)
         invaders (:invaders state)
 
         ;; Smooth drop animation variables
         is-dropping (:invader-dropping state)
         drop-progress (:invader-drop-progress state)
-        drop-speed 2.0] ;; Pixels per frame during drop
+        drop-speed (* 2.0 dynamic-compensation)] ;; Dynamic drop speed too
 
     (cond
       ;; Currently dropping - continue smooth drop animation
@@ -687,11 +730,9 @@
 
 (defn move-bullets [state]
   (let [old-bullets (:bullets state)
-        ;; Compensate for mobile 30fps vs desktop 60fps
-                ;; Compensate for different frame rates to maintain consistent game speed
-                ;; Compensate for mobile 30fps vs desktop 60fps
-        frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
-        effective-bullet-speed (* bullet-speed frame-rate-multiplier)
+        ;; Dynamic compensation based on actual measured frame rate
+        dynamic-compensation (get-dynamic-compensation)
+        effective-bullet-speed (* bullet-speed dynamic-compensation)
         new-bullets (->> old-bullets
                          (map #(update % :y - effective-bullet-speed))
                          (filter #(> (:y %) 0)))]
@@ -923,11 +964,9 @@
 (defn process-continuous-movement [state]
   "Process continuous movement while keys are held down"
   (let [keys (:keys-pressed state)
-        ;; Compensate for mobile 30fps vs desktop 60fps
-                ;; Compensate for different frame rates to maintain consistent game speed
-                ;; Compensate for mobile 30fps vs desktop 60fps
-        frame-rate-multiplier (if (:is-mobile state) 2.0 1.0)
-        move-speed (* 4 frame-rate-multiplier)] ; Pixels per frame for continuous movement
+        ;; Dynamic compensation based on actual measured frame rate
+        dynamic-compensation (get-dynamic-compensation)
+        move-speed (* 4 dynamic-compensation)] ; Pixels per frame for continuous movement
     (cond
       (contains? keys "ArrowLeft")
       (move-player state :left-continuous move-speed)
@@ -1154,9 +1193,12 @@
     @mobile-device))
 
 (defn game-loop []
-  "Game loop with fixed frame rates - 30fps mobile, 60fps desktop"
+  "Game loop with dynamic frame rate compensation"
   (let [is-mobile @mobile-device
         current-time (js/Date.now)]
+
+    ;; Update dynamic frame rate tracking
+    (update-frame-rate-tracking)
 
     ;; Update FPS counter every second
     (swap! frame-count inc)
@@ -1638,12 +1680,15 @@
                      (contains? keys "ArrowLeft") "←"
                      (contains? keys "ArrowRight") "→"
                      :else "■"))
-        " Mult:" (if (:is-mobile state) "2.0x" "1.0x")]
+        " Comp:" (str (.toFixed (get-dynamic-compensation) 2) "x")]
        [:div {:style {:font-size "10px" :color "#ff8800"}}
         "InvSpd:" (str (.toFixed @invader-speed-display 3) "px/f")
         " C:" @speed-update-counter
         " " (let [is-dropping (:invader-dropping state)]
-              (if is-dropping "⬇" "→"))]]
+              (if is-dropping "⬇" "→"))]
+       [:div {:style {:font-size "9px" :color "#aaaaaa"}}
+        (let [fr-info (get-frame-rate-info)]
+          (str "⚡ " (.toFixed (:current-fps fr-info) 1) "fps → " (.toFixed (:compensation fr-info) 2) "x"))]]
 
       ;; Game over overlay with enhanced styling
       (when (:game-over state)
@@ -1860,6 +1905,35 @@
                                 (conj (or (:keys-pressed @game-state) #{}) " "))
                          (swap! game-state fire-bullet)))}
      "FIRE"]]])
+
+;; Test functions for dynamic compensation
+(defn test-dynamic-compensation []
+  "Test the dynamic compensation system"
+  (in-ns 'space-invaders)
+  (let [fr-info (get-frame-rate-info)]
+    (println "\n🎯 DYNAMIC COMPENSATION TEST")
+    (println "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    (println (str "📊 Current FPS: " (.toFixed (:current-fps fr-info) 1)))
+    (println (str "🎯 Target FPS: " (.toFixed (:target-fps fr-info) 1)))
+    (println (str "⚡ Compensation: " (.toFixed (:compensation fr-info) 3) "x"))
+    (println (str "📈 Sample count: " (:sample-count fr-info)))
+    (println (str "✅ Stable: " (if (:is-stable fr-info) "Yes" "No")))
+    (println "\nOLD vs NEW:")
+    (println "  Old mobile: 2.0x fixed")
+    (println "  Old desktop: 1.0x fixed")
+    (println (str "  New dynamic: " (.toFixed (:compensation fr-info) 3) "x (adapts to real performance)"))
+    (println "\nThis should eliminate speed differences between platforms!")))
+
+(defn reset-compensation []
+  "Reset the compensation system"
+  (in-ns 'space-invaders)
+  (reset! frame-rate-tracker {:samples []
+                              :max-samples 60
+                              :last-frame-time 0
+                              :current-fps 60
+                              :target-fps 60
+                              :compensation-multiplier 1.0})
+  (println "🔄 Dynamic compensation reset - will recalibrate automatically"))
 
 (defn init []
   (dom/render [app] (.getElementById js/document "app"))
