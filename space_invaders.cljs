@@ -1183,6 +1183,21 @@
       (comment "📱 MOBILE MODE: 30fps + performance optimizations enabled"))
 
     (init-audio) ;; Initialize sound
+
+    ;; CRITICAL FIX: Stop any existing game loop properly
+    ;; Both mobile and desktop use setTimeout, so always use clearTimeout
+    (when @game-loop-id
+      (js/clearTimeout @game-loop-id)
+      (reset! game-loop-id nil))
+
+    ;; ADDITIONAL FIX: Reset all speed tracking atoms to prevent stale data
+    (reset! frame-count 0)
+    (reset! fps-display 0)
+    (reset! last-fps-update 0)
+    (reset! last-invader-pos nil)
+    (reset! invader-speed-display 0)
+    (reset! speed-update-counter 0)
+
     (reset! game-state {:player {:x 380 :y 358}
                         :bullets []
                         :invader-bullets []
@@ -1214,12 +1229,6 @@
                         :is-mobile is-mobile ;; Use the sophisticated mobile detection
                         :frame-skip 0 ;; Mobile frame skipping
                         :reduced-effects is-mobile}) ;; Enable reduced effects on mobile
-
-    ;; Stop any existing game loop
-    (when @game-loop-id
-      (if is-mobile
-        (js/clearTimeout @game-loop-id)
-        (js/cancelAnimationFrame @game-loop-id)))
 
     (setup-global-key-listeners)
     (game-loop)))
@@ -1762,7 +1771,23 @@
        ;; Render particles
        (for [particle (:particles state)]
          ^{:key (:id particle)}
-         [particle-component particle])]]]))
+         [particle-component particle])]
+
+      ;; Mobile debug panel - centered below game
+      (when (:is-mobile state)
+        [:div {:style {:margin "10px auto"
+                       :max-width "796px"
+                       :padding "6px"
+                       :background "rgba(0,0,0,0.9)"
+                       :border "1px solid #00ff00"
+                       :border-radius "4px"
+                       :font-family "monospace"
+                       :font-size "9px"
+                       :text-align "center"}}
+         [:span {:style {:color "#00ff00"}} "📡 "]
+         [:span {:style {:color "#ffaa00"}} "FPS:" @fps-display " "]
+         [:span {:style {:color "#00ffff"}} "PB:" (count (:bullets state)) " "]
+         [:span {:style {:color "#ff8800"}} "InvSpd:" (str (.toFixed @invader-speed-display 3) "px/f")]])]]))
 
 ;; Init
  ;; Mobile Touch Controls Component (rendered separately to avoid scaling)
