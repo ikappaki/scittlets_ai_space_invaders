@@ -846,16 +846,14 @@
           (catch js/Error e
             (comment "Audio error:" e)))
         (if (> (:lives state) 1)
-          ;; Lose a life, reset level
+          ;; Lose a life - AUTHENTIC: Keep invaders where they are!
           (-> state
               (update :lives dec)
               (assoc :invader-bullets []) ;; Clear all invader bullets
               (assoc :bullets []) ;; Clear player bullets
-              (assoc :invaders (initialize-invaders (:level state)))
-              ;; Reset barriers
-              (assoc :invader-direction 1)
-              (assoc :invader-move-timer 0)
-              (assoc :invader-shoot-timer 0)
+              ;; FIXED: Don't reset invaders - they stay where they were!
+              ;; Reset barriers only
+              (assoc :barriers (initialize-barriers))
               add-screen-shake)
           ;; Game over
           (do
@@ -935,24 +933,16 @@
   (let [invaders (:invaders state)
         player (:player state)]
     (cond
+      ;; AUTHENTIC SPACE INVADERS: When invaders reach the bottom, it's IMMEDIATE GAME OVER
+      ;; regardless of remaining lives - the invasion has succeeded!
       (some #(>= (:y %) (- (:y player) 20)) invaders)
-      (if (> (:lives state) 1)
-        (do
-          (comment (str "Lost a life! Lives remaining: " (dec (:lives state))))
-          (try
-            (play-explosion-sound) ;; Death sound
-            (catch js/Error e
-              (comment "Audio error:" e)))
-          (-> state
-              (update :lives dec)
-              (assoc :invaders (initialize-invaders (:level state)))
-              (assoc :bullets [])
-              ;; Reset barriers - FIXED!
-              (assoc :invader-direction 1) ;; Reset movement direction
-              (assoc :invader-move-timer 0))) ;; Reset movement timer
-        (do
-          (comment "Game Over! No lives remaining!")
-          (assoc state :game-over true)))
+      (do
+        (comment "INVASION SUCCESSFUL! Invaders reached Earth - GAME OVER!")
+        (try
+          (play-explosion-sound) ;; Invasion success sound
+          (catch js/Error e
+            (comment "Audio error:" e)))
+        (assoc state :game-over true)) ;; Immediate Game Over - no life loss
 
       :else state)))
 
