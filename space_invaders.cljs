@@ -160,6 +160,47 @@
 (defn play-explosion-sound []
   (play-sound 110 0.3))
 
+(defn play-player-hit-sound []
+  "Retro 8-bit Space Invaders player explosion with square waves and rapid decay"
+  (when @audio-context
+    (try
+      (let [ctx @audio-context
+            now (.-currentTime ctx)]
+
+        ;; Burst of 4 tones with specified frequencies and timing
+        (doseq [[freq start-delay duration volume]
+                [[880 0.0 0.05 0.8] ; 880 Hz for 50ms
+                 [660 0.05 0.05 0.7] ; 660 Hz for 50ms  
+                 [440 0.1 0.07 0.6] ; 440 Hz for 70ms
+                 [220 0.17 0.1 0.5]]] ; 220 Hz for 100ms
+
+          (let [oscillator (.createOscillator ctx)
+                gain (.createGain ctx)]
+
+            ;; Connect audio chain
+            (.connect oscillator gain)
+            (.connect gain (.-destination ctx))
+
+            ;; Square wave for authentic 8-bit sound
+            (aset oscillator "type" "square")
+            (aset oscillator "frequency" "value" freq)
+
+            ;; Rapid decay envelope for retro arcade effect
+            (let [start-time (+ now start-delay)
+                  attack-time 0.005 ; Very fast attack
+                  decay-time duration]
+
+              (aset gain "gain" "value" 0)
+              (.setValueAtTime (.-gain gain) 0 start-time)
+              (.linearRampToValueAtTime (.-gain gain) volume (+ start-time attack-time))
+              (.exponentialRampToValueAtTime (.-gain gain) 0.01 (+ start-time decay-time))
+
+              (.start oscillator start-time)
+              (.stop oscillator (+ start-time decay-time))))))
+
+      (catch js/Error e
+        (comment "Player explosion sound error:" e)))))
+
 (defn calculate-heartbeat-interval [invader-count]
   "Calculate heartbeat interval based on remaining invaders - fewer invaders = faster heartbeat"
   (let [base-interval 60 ; Base interval in frames (60 fps = 1 second)
@@ -857,7 +898,7 @@
       (do
         (comment (str "Player hit by invader bullet! Lives: " (dec (:lives state))))
         (try
-          (play-explosion-sound) ;; Player hit sound
+          (play-player-hit-sound) ;; Retro 8-bit player explosion sound
           (catch js/Error e
             (comment "Audio error:" e)))
         (if (> (:lives state) 1)
