@@ -615,10 +615,16 @@
   "Create a bullet fired by an invader"
   {:x (+ (:x invader) (/ invader-width 2))
    :y (+ (:y invader) invader-height)
-   :id bullet-id})
+   :id bullet-id}) ; Standard vertical speed
+
+(defn create-invader-bullet [invader bullet-id]
+  "Create a bullet fired by an invader"
+  {:x (+ (:x invader) (/ invader-width 2))
+   :y (+ (:y invader) invader-height)
+   :id bullet-id}) ; Vertical velocity (same as regular bullets) ; Mark as targeted bullet for visual distinction
 
 (defn fire-invader-bullet [state]
-  "Randomly fire bullets from bottom invaders"
+  "Fire bullets from bottom invaders - authentic Space Invaders targeting behavior"
   (let [timer (:invader-shoot-timer state)
         base-interval (:invader-shoot-interval state)
         level-bonus (* 10 (dec (:level state)))
@@ -626,16 +632,31 @@
         dynamic-compensation (get-dynamic-compensation)
         ;; Adjust interval based on actual frame rate to maintain consistent timing
         adjusted-interval (/ (max 60 (- base-interval level-bonus)) dynamic-compensation)
-        bottom-invaders (get-bottom-invaders (:invaders state))]
+        bottom-invaders (get-bottom-invaders (:invaders state))
+        player (:player state)]
 
     (if (and (>= timer adjusted-interval)
              (not (empty? bottom-invaders))
-             (< (rand) 0.3)) ;; 30% chance to shoot when timer is ready
-      ;; Fire a bullet from random bottom invader
-      (let [shooter (rand-nth bottom-invaders)
-            bullet-id (:next-invader-bullet-id state)
+             (< (rand) 0.5)) ;; INCREASED: 50% chance to shoot when timer is ready (was 30%)
+      ;; AUTHENTIC SPACE INVADERS: Choose shooter based on targeting
+      (let [bullet-id (:next-invader-bullet-id state)
+            ;; INCREASED: 70% chance for "rolling" shots that target the player's column
+            use-targeting (< (rand) 0.7)
+            shooter (if use-targeting
+                      ;; Find the bottom invader closest to the player's column
+                      (let [player-center (+ (:x player) (/ player-width 2))
+                            closest-invader (apply min-key
+                                                   #(Math/abs (- (+ (:x %) (/ invader-width 2)) player-center))
+                                                   bottom-invaders)
+                            distance-to-player (Math/abs (- (+ (:x closest-invader) (/ invader-width 2)) player-center))]
+                        ;; Only use targeting if there's an invader reasonably close to player
+                        (if (< distance-to-player 100) ; Within 100 pixels
+                          closest-invader
+                          (rand-nth bottom-invaders))) ; Fall back to random if no close invader
+                      ;; Random bottom invader for non-targeted shots
+                      (rand-nth bottom-invaders))
             new-bullet (create-invader-bullet shooter bullet-id)]
-        (comment (str "Invader fires bullet " bullet-id " at " (:x new-bullet) "," (:y new-bullet)))
+        (comment (str "Invader fires " (if use-targeting "TARGETED" "RANDOM") " bullet from column " (:x shooter) " (player at " (:x player) ")"))
         (try
           (play-hit-sound) ;; Different sound for invader shooting
           (catch js/Error e
@@ -649,7 +670,7 @@
       (update state :invader-shoot-timer inc))))
 
 (defn move-invader-bullets [state]
-  "Move invader bullets downward and remove off-screen ones"
+  "Move invader bullets straight down and remove off-screen ones"
   (update state :invader-bullets
           (fn [bullets]
             (let [;; Dynamic compensation based on actual measured frame rate
@@ -657,7 +678,7 @@
                   invader-bullet-speed (* 5 dynamic-compensation)]
               (->> bullets
                    (map #(update % :y + invader-bullet-speed))
-                   (filter #(< (:y %) game-height))))))) ;; Remove off-screen bullets 
+                   (filter #(< (:y %) game-height))))))) ; Remove bullets that go off-screen ;; Remove off-screen bullets 
 
 (defn move-invaders [state]
   (let [;; Smooth continuous movement - small steps every frame
@@ -851,9 +872,7 @@
               (update :lives dec)
               (assoc :invader-bullets []) ;; Clear all invader bullets
               (assoc :bullets []) ;; Clear player bullets
-              ;; FIXED: Don't reset invaders - they stay where they were!
-              ;; Reset barriers only
-              (assoc :barriers (initialize-barriers))
+              ;; FIXED: Don't reset invaders or barriers - they stay as they were!
               add-screen-shake)
           ;; Game over
           (do
@@ -1363,7 +1382,7 @@
                  :box-shadow "0 0 15px #ff0000"
                  :animation "bulletGlow 0.5s ease-in-out infinite alternate"
                  :z-index 5}}
-   ;; Invader bullet trail effect (downward)
+   ;; Invader bullet trail effect (upward from bullet)
    [:div {:style {:position "absolute"
                   :top "-20px" ;; Trail goes upward from bullet
                   :left "50%"
