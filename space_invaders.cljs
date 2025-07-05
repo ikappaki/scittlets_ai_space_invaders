@@ -227,13 +227,7 @@
 (defn test-heartbeat []
   "Test function to manually trigger heartbeat sound for volume testing"
   (comment "🔊 Testing heartbeat sound...")
-  (play-heartbeat-sound)) ; On rhythm
-
-(defn play-hit-sound []
-  (play-sound 220 0.2))
-
-(defn play-explosion-sound []
-  (play-sound 110 0.3))
+  (play-heartbeat-sound))
 
 ;; Game logic
 
