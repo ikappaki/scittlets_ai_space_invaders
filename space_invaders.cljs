@@ -201,74 +201,13 @@
       (catch js/Error e
         (comment "Player explosion sound error:" e)))))
 
-(defn calculate-heartbeat-interval [invader-count]
-  "Calculate heartbeat interval based on remaining invaders - fewer invaders = faster heartbeat"
-  (let [base-interval 60 ; Base interval in frames (60 fps = 1 second)
-        min-interval 15 ; Fastest heartbeat (quarter second)
-        max-invaders 55 ; Total invaders at start
-        ;; Dynamic frame rate compensation for heartbeat timing
-        dynamic-compensation (get-dynamic-compensation)
-        ;; Adjust intervals based on actual frame rate
-        adjusted-base (/ base-interval dynamic-compensation)
-        adjusted-min (/ min-interval dynamic-compensation)]
-    (max adjusted-min
-         (int (* adjusted-base (/ invader-count max-invaders))))))
+;; Heartbeat system removed - cleaner audio design
 
-(defn play-heartbeat-sound []
-  "Play the iconic Space Invaders heartbeat - low frequency thump"
-  (when @audio-context
-    (try
-      (when (= (.-state @audio-context) "suspended")
-        (.resume @audio-context))
+;; Heartbeat functions removed - cleaner audio design
 
-      (let [ctx @audio-context
-            oscillator (.createOscillator ctx)
-            gain (.createGain ctx)
-            filter (.createBiquadFilter ctx)]
+;; Heartbeat functions removed - cleaner audio design ; Don't play during drop animation
 
-        ;; Connect audio chain: oscillator -> filter -> gain -> destination
-        (.connect oscillator filter)
-        (.connect filter gain)
-        (.connect gain (.-destination ctx))
-
-        ;; Configure oscillator for deep thump
-        (aset oscillator "frequency" "value" 80) ; Very low frequency
-        (aset oscillator "type" "sawtooth")
-
-        ;; Configure filter for muffled effect
-        (aset filter "type" "lowpass")
-        (aset filter "frequency" "value" 250)
-
-        ;; Configure envelope for sharp attack and quick decay
-        (let [now (.-currentTime ctx)
-              attack-time 0.01
-              decay-time 0.15]
-          (aset gain "gain" "value" 0)
-          (.setValueAtTime (.-gain gain) 0 now)
-          (.linearRampToValueAtTime (.-gain gain) 0.8 (+ now attack-time))
-          (.exponentialRampToValueAtTime (.-gain gain) 0.01 (+ now decay-time))
-
-          (.start oscillator now)
-          (.stop oscillator (+ now 0.15))
-          (comment "💗 Heartbeat played!")))
-
-      (catch js/Error e
-        (comment "Heartbeat sound error:" e)))))
-
-(defn should-play-heartbeat? [state]
-  "Determine if it's time to play the heartbeat based on game rhythm"
-  (let [invader-count (count (:invaders state))
-        heartbeat-interval (calculate-heartbeat-interval invader-count)
-        frame (:frame state)
-        should-play (and (> invader-count 0) ; Only when invaders remain
-                         (not (:game-over state)) ; Not during game over
-                         (= (mod frame heartbeat-interval) 0))] ; On rhythm
-    should-play))
-
-(defn test-heartbeat []
-  "Test function to manually trigger heartbeat sound for volume testing"
-  (comment "🔊 Testing heartbeat sound...")
-  (play-heartbeat-sound))
+;; Heartbeat test function removed
 
 ;; Game logic
 
@@ -716,8 +655,9 @@
                    (filter #(< (:y %) game-height))))))) ; Remove bullets that go off-screen ;; Remove off-screen bullets 
 
 (defn move-invaders [state]
+  "Move invaders with smooth continuous movement"
   (let [;; Smooth continuous movement - small steps every frame
-        base-speed 0.5 ;; Base speed in pixels per frame
+        base-speed 0.3 ;; Reduced from 0.5 for easier first level
         level-multiplier (+ 1 (* 0.2 (dec (:level state)))) ;; Slight speed increase per level
         ;; Dynamic compensation based on actual measured frame rate
         dynamic-compensation (get-dynamic-compensation)
@@ -747,7 +687,7 @@
                                  (assoc :invaders new-invaders)
                                  (assoc :invader-dropping false)
                                  (assoc :invader-drop-progress 0)))]
-          ;; Track speed for dropping movement too
+          ;; Track speed for dropping movement
           (when-let [first-invader (first new-invaders)]
             (let [current-pos {:x (:x first-invader) :y (:y first-invader)}]
               (when-let [last-pos @last-invader-pos]
@@ -759,7 +699,7 @@
               (reset! last-invader-pos current-pos)))
           result-state))
 
-      ;; Normal horizontal movement
+      ;; Normal horizontal movement - smooth continuous
       :else
       (let [;; Calculate new horizontal positions with smooth movement
             new-invaders (map #(update % :x + (* direction move-speed)) invaders)
@@ -895,24 +835,39 @@
 
     (if (not (empty? hit-bullets))
       ;; Player was hit!
-      (do
-        (comment (str "Player hit by invader bullet! Lives: " (dec (:lives state))))
-        (try
-          (play-player-hit-sound) ;; Retro 8-bit player explosion sound
-          (catch js/Error e
-            (comment "Audio error:" e)))
+      (if (:death-sound-played-this-frame state)
+        ;; Death sound already played this frame, skip sound but process hit
         (if (> (:lives state) 1)
           ;; Lose a life - AUTHENTIC: Keep invaders where they are!
           (-> state
               (update :lives dec)
               (assoc :invader-bullets []) ;; Clear all invader bullets
               (assoc :bullets []) ;; Clear player bullets
-              ;; FIXED: Don't reset invaders or barriers - they stay as they were!
+              (dissoc :death-sound-played-this-frame) ;; Clear flag for next frame
               add-screen-shake)
           ;; Game over
-          (do
-            (comment "Game Over! Player destroyed!")
-            (assoc state :game-over true))))
+          (-> state
+              (assoc :game-over true)
+              (dissoc :death-sound-played-this-frame)))
+        ;; First hit this frame, play sound
+        (do
+          (comment (str "Player hit by invader bullet! Lives: " (dec (:lives state))))
+          (try
+            (play-player-hit-sound) ;; Retro 8-bit player explosion sound
+            (catch js/Error e
+              (comment "Audio error:" e)))
+          (if (> (:lives state) 1)
+            ;; Lose a life - AUTHENTIC: Keep invaders where they are!
+            (-> state
+                (update :lives dec)
+                (assoc :invader-bullets []) ;; Clear all invader bullets
+                (assoc :bullets []) ;; Clear player bullets
+                (assoc :death-sound-played-this-frame true) ;; Flag to prevent duplicate sound
+                add-screen-shake)
+            ;; Game over
+            (-> state
+                (assoc :game-over true)
+                (assoc :death-sound-played-this-frame true)))))
 
       ;; No collision, just remove any bullets that hit
       (update state :invader-bullets
@@ -1190,18 +1145,16 @@
                   %))
 
               ;; Play heartbeat less frequently on mobile (every 4th frame)
-              (#(do (when (and (should-play-heartbeat? %)
-                               (= (mod frame 4) 0))
-                      (play-heartbeat-sound))
-                    %))))
+              ;; Heartbeat now synchronized with invader movement - no frame-based heartbeat needed 
+
+              ;; Clear death sound flag for next frame
+              (#(dissoc % :death-sound-played-this-frame))))
 
         ;; Desktop: Full 60 FPS performance - no optimizations
         (-> state
             (update :frame inc)
             ;; Play heartbeat audio on rhythm
-            (#(do (when (should-play-heartbeat? %)
-                    (play-heartbeat-sound))
-                  %))
+            ;; Heartbeat now synchronized with invader movement - no frame-based heartbeat needed 
             process-continuous-movement
             move-bullets
             move-invader-bullets
@@ -1222,7 +1175,9 @@
             ;; Remove screen shake after a few frames (enabled on desktop)
             (#(if (and (:screen-shake %) (> (mod (:frame %) 10) 5))
                 (remove-screen-shake %)
-                %)))))))
+                %))
+            ;; Clear death sound flag for next frame
+            (#(dissoc % :death-sound-played-this-frame)))))))
 
 ;; Game loop with adaptive frame rate for mobile performance
 (defonce game-loop-id (atom nil))
@@ -1664,17 +1619,8 @@
                                 (init-audio)
                                 (js/setTimeout play-shoot-sound 100))}
           "🔊 SHOT"]
-         [:button {:style {:padding "5px 10px"
-                           :font-size "12px"
-                           :background "#600"
-                           :color "#fff"
-                           :border "1px solid #ff6666"
-                           :border-radius "3px"
-                           :cursor "pointer"}
-                   :on-click #(do
-                                (init-audio)
-                                (js/setTimeout test-heartbeat 100))}
-          "💗 HEART"]]]]
+         ;; Heartbeat button removed
+         ]]]
 
       ;; Debug panel (smaller, less intrusive)
       ;; Instructions panel (top left)
