@@ -11,7 +11,7 @@
 (def invader-height 20)
 (def bullet-width 8)
 (def bullet-height 20)
-(def bullet-speed 6)
+(def bullet-speed 4)
 (def invader-speed 0.1)
 
 ;; Enhanced game state with lives, levels, and effects
@@ -649,7 +649,7 @@
           (fn [bullets]
             (let [;; Dynamic compensation based on actual measured frame rate
                   dynamic-compensation (get-dynamic-compensation)
-                  invader-bullet-speed (* 5 dynamic-compensation)]
+                  invader-bullet-speed (* bullet-speed dynamic-compensation)]
               (->> bullets
                    (map #(update % :y + invader-bullet-speed))
                    (filter #(< (:y %) game-height))))))) ; Remove bullets that go off-screen ;; Remove off-screen bullets 
