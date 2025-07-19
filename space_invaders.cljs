@@ -11,7 +11,7 @@
 (def invader-height 20)
 (def bullet-width 8)
 (def bullet-height 20)
-(def bullet-speed 4)
+(def bullet-speed 6)
 (def invader-speed 0.1)
 
 ;; Enhanced game state with lives, levels, and effects
@@ -49,7 +49,15 @@
     :barriers []
     :is-mobile (< (.-innerWidth js/window) 768) ;; Mobile detection
     :frame-skip 0 ;; Mobile frame skipping for performance
-    :reduced-effects false})) ;; Mobile reduced effects mode ;; Mobile reduced effects mode
+    :reduced-effects false ;; Mobile reduced effects mode
+    ;; Player death sequence state
+    :player-dying false ;; Is player currently in death sequence?
+    :death-timer 0 ;; Frame counter for death pause
+    :death-pause-seconds 2.0
+    ;; Player invulnerability after respawn
+    :player-invulnerable false ;; Is player currently invulnerable?
+    :invulnerability-timer 0 ;; Frame counter for invulnerability
+    :invulnerability-seconds 3.0})) ;; Mobile reduced effects mode ;; Mobile reduced effects mode
 
 ;; Audio System
  ;; Audio System  
@@ -113,7 +121,21 @@
      :target-fps (:target-fps tracker)
      :compensation (:compensation-multiplier tracker)
      :sample-count (count (:samples tracker))
-     :is-stable (> (count (:samples tracker)) 30)})) ; Stable after 30 samples
+     :is-stable (> (count (:samples tracker)) 30)}))
+
+ ;; Timing functions for death/respawn system  
+
+(defn calculate-pause-duration [pause-seconds]
+  "Calculate frame count for pause duration based on current frame rate"
+  (let [is-mobile (:is-mobile @game-state)
+        target-fps (if is-mobile 30 60)]
+    (* pause-seconds target-fps)))
+
+(defn calculate-invulnerability-duration [invul-seconds]
+  "Calculate frame count for invulnerability duration based on current frame rate"
+  (let [is-mobile (:is-mobile @game-state)
+        target-fps (if is-mobile 30 60)]
+    (* invul-seconds target-fps)))
 
 (defn init-audio []
   (when (and js/window (.-AudioContext js/window))
@@ -201,14 +223,6 @@
       (catch js/Error e
         (comment "Player explosion sound error:" e)))))
 
-;; Heartbeat system removed - cleaner audio design
-
-;; Heartbeat functions removed - cleaner audio design
-
-;; Heartbeat functions removed - cleaner audio design ; Don't play during drop animation
-
-;; Heartbeat test function removed
-
 ;; Game logic
 
 ;; Visual effects
@@ -274,6 +288,62 @@
 
 (defn remove-screen-shake [state]
   (assoc state :screen-shake false))
+
+(defn process-death-sequence [state]
+  "Handle player death sequence: explosion, sound, pause, then respawn"
+  (let [player (:player state)
+        player-x (+ (:x player) (/ player-width 2))
+        player-y (+ (:y player) (/ player-height 2))
+        pause-frames (calculate-pause-duration (:death-pause-seconds state))]
+
+    ;; Play death sound
+    (try
+      (play-player-hit-sound)
+      (catch js/Error e
+        (comment "Audio error:" e)))
+
+    ;; Start death sequence with explosion and particles at player position
+    (-> state
+        (assoc :player-dying true)
+        (assoc :death-timer pause-frames) ;; Set countdown timer
+        (assoc :invader-bullets []) ;; Clear all invader bullets
+        (assoc :bullets []) ;; Clear player bullets
+        ;; Add explosion at player position
+        (update :explosions conj (create-explosion player-x player-y))
+        ;; Add particles at player position
+        (update :particles concat (create-particles-for-platform player-x player-y 12))
+        add-screen-shake)))
+
+(defn handle-respawn [state]
+  "Handle player respawn after death sequence completes"
+  (if (> (:lives state) 1)
+    ;; Still have lives - respawn player with invulnerability
+    (let [invul-frames (calculate-invulnerability-duration (:invulnerability-seconds state))]
+      (-> state
+          (assoc :player {:x 380 :y 358}) ;; Reset player position
+          (update :lives dec) ;; Lose a life
+          (assoc :player-dying false) ;; Clear death state
+          (assoc :death-timer 0) ;; Reset death timer
+          (assoc :player-invulnerable true) ;; Start invulnerability
+          (assoc :invulnerability-timer invul-frames))) ;; Set invulnerability timer
+    ;; No lives left - game over
+    (-> state
+        (assoc :game-over true)
+        (assoc :player-dying false)
+        (assoc :death-timer 0))))
+
+(defn process-invulnerability [state]
+  "Handle invulnerability timer countdown"
+  (if (:player-invulnerable state)
+    (let [new-timer (dec (:invulnerability-timer state))]
+      (if (<= new-timer 0)
+        ;; Invulnerability period over
+        (-> state
+            (assoc :player-invulnerable false)
+            (assoc :invulnerability-timer 0))
+        ;; Continue invulnerability countdown
+        (assoc state :invulnerability-timer new-timer)))
+    state))
 
 ;; Explosions last 15 frames
 
@@ -828,48 +898,18 @@
 
 ;; Player collision detection
 (defn check-invader-bullet-player-collisions [state]
-  "Check if invader bullets hit the player"
+  "Check if invader bullets hit the player and trigger death sequence"
   (let [player (:player state)
         invader-bullets (:invader-bullets state)
         hit-bullets (filter #(rectangles-collide? % player) invader-bullets)]
 
-    (if (not (empty? hit-bullets))
-      ;; Player was hit!
-      (if (:death-sound-played-this-frame state)
-        ;; Death sound already played this frame, skip sound but process hit
-        (if (> (:lives state) 1)
-          ;; Lose a life - AUTHENTIC: Keep invaders where they are!
-          (-> state
-              (update :lives dec)
-              (assoc :invader-bullets []) ;; Clear all invader bullets
-              (assoc :bullets []) ;; Clear player bullets
-              (dissoc :death-sound-played-this-frame) ;; Clear flag for next frame
-              add-screen-shake)
-          ;; Game over
-          (-> state
-              (assoc :game-over true)
-              (dissoc :death-sound-played-this-frame)))
-        ;; First hit this frame, play sound
-        (do
-          (comment (str "Player hit by invader bullet! Lives: " (dec (:lives state))))
-          (try
-            (play-player-hit-sound) ;; Retro 8-bit player explosion sound
-            (catch js/Error e
-              (comment "Audio error:" e)))
-          (if (> (:lives state) 1)
-            ;; Lose a life - AUTHENTIC: Keep invaders where they are!
-            (-> state
-                (update :lives dec)
-                (assoc :invader-bullets []) ;; Clear all invader bullets
-                (assoc :bullets []) ;; Clear player bullets
-                (assoc :death-sound-played-this-frame true) ;; Flag to prevent duplicate sound
-                add-screen-shake)
-            ;; Game over
-            (-> state
-                (assoc :game-over true)
-                (assoc :death-sound-played-this-frame true)))))
+    (if (and (not (empty? hit-bullets))
+             (not (:player-dying state)) ;; Only process hit if not already dying
+             (not (:player-invulnerable state))) ;; Only process hit if not invulnerable
+      ;; Player was hit! Start death sequence
+      (process-death-sequence state)
 
-      ;; No collision, just remove any bullets that hit
+      ;; No collision or already dying/invulnerable, just remove any bullets that hit
       (update state :invader-bullets
               (fn [bullets]
                 (remove #(rectangles-collide? % player) bullets))))))
@@ -1109,75 +1149,91 @@
 (defn update-game [state]
   (if (:game-over state)
     state
-    (let [is-mobile (:is-mobile state)]
-      (if is-mobile
-        ;; Mobile: Optimized update with reduced processing for non-critical systems
-        (let [frame (:frame state)
-              ;; Process heavy visual effects every other frame, but keep gameplay smooth
-              process-visual-effects (= (mod frame 2) 0)]
+
+    ;; Check if player is in death sequence
+    (if (:player-dying state)
+      ;; Player is dying - handle death sequence countdown
+      (let [new-timer (dec (:death-timer state))]
+        (if (<= new-timer 0)
+          ;; Death sequence complete - handle respawn
+          (handle-respawn state)
+          ;; Continue death sequence - only update visual effects and timer
+          (-> state
+              (assoc :death-timer new-timer)
+              (update :frame inc)
+                ;; Handle invulnerability timer
+              process-invulnerability
+              update-explosions
+              update-particles
+              ;; Remove screen shake after a few frames
+              (#(if (and (:screen-shake %) (> (mod (:frame %) 10) 5))
+                  (remove-screen-shake %)
+                  %)))))
+
+      ;; Normal gameplay - player is alive
+      (let [is-mobile (:is-mobile state)]
+        (if is-mobile
+          ;; Mobile: Optimized update with reduced processing for non-critical systems
+          (let [frame (:frame state)
+                ;; Process heavy visual effects every other frame, but keep gameplay smooth
+                process-visual-effects (= (mod frame 2) 0)]
+            (-> state
+                (update :frame inc)
+                ;; Handle invulnerability timer
+                process-invulnerability
+                ;; Always process ALL essential gameplay for smooth experience
+                process-continuous-movement
+                move-bullets
+                move-invader-bullets
+                move-invaders ;; Always process invader movement
+                fire-invader-bullet ;; Always process invader shooting
+                spawn-ufo ;; Always process UFO spawning
+                move-ufo ;; Always process UFO movement
+                process-barrier-collisions ;; Always process collisions
+                check-bullet-invader-collisions
+                check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
+                check-invader-bullet-player-collisions ;; Invader bullets vs player
+                ;; Invader bullets vs barriers
+                check-level-completion
+                check-invader-barrier-collisions
+                check-player-collision
+
+                ;; Only optimize visual effects processing
+                (#(if process-visual-effects
+                    (-> % update-explosions update-particles)
+                    %))
+
+                ;; Limit particles on mobile for memory management
+                (#(if (> (count (:particles %)) 20)
+                    (assoc % :particles (take 15 (:particles %)))
+                    %))))
+
+          ;; Desktop: Full 60 FPS performance - no optimizations
           (-> state
               (update :frame inc)
-              ;; Always process ALL essential gameplay for smooth experience
+              ;; Handle invulnerability timer
+              process-invulnerability
               process-continuous-movement
               move-bullets
               move-invader-bullets
-              move-invaders ;; Always process invader movement
-              fire-invader-bullet ;; Always process invader shooting
-              spawn-ufo ;; Always process UFO spawning
-              move-ufo ;; Always process UFO movement
-              process-barrier-collisions ;; Always process collisions
-              check-bullet-invader-collisions
+              move-invaders
+              fire-invader-bullet
+              spawn-ufo ;; UFO: Check if UFO should spawn
+              move-ufo ;; UFO: Move existing UFO
+              process-barrier-collisions ;; BARRIERS: Process bullet-barrier collisions first
+              check-bullet-invader-collisions ;; Player bullets vs invaders  
               check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
               check-invader-bullet-player-collisions ;; Invader bullets vs player
               ;; Invader bullets vs barriers
+              update-explosions
+              update-particles
               check-level-completion
               check-invader-barrier-collisions
               check-player-collision
-
-              ;; Only optimize visual effects processing
-              (#(if process-visual-effects
-                  (-> % update-explosions update-particles)
-                  %))
-
-              ;; Limit particles on mobile for memory management
-              (#(if (> (count (:particles %)) 20)
-                  (assoc % :particles (take 15 (:particles %)))
-                  %))
-
-              ;; Play heartbeat less frequently on mobile (every 4th frame)
-              ;; Heartbeat now synchronized with invader movement - no frame-based heartbeat needed 
-
-              ;; Clear death sound flag for next frame
-              (#(dissoc % :death-sound-played-this-frame))))
-
-        ;; Desktop: Full 60 FPS performance - no optimizations
-        (-> state
-            (update :frame inc)
-            ;; Play heartbeat audio on rhythm
-            ;; Heartbeat now synchronized with invader movement - no frame-based heartbeat needed 
-            process-continuous-movement
-            move-bullets
-            move-invader-bullets
-            move-invaders
-            fire-invader-bullet
-            spawn-ufo ;; UFO: Check if UFO should spawn
-            move-ufo ;; UFO: Move existing UFO
-            process-barrier-collisions ;; BARRIERS: Process bullet-barrier collisions first
-            check-bullet-invader-collisions ;; Player bullets vs invaders  
-            check-bullet-ufo-collision ;; UFO: Player bullets vs UFO
-            check-invader-bullet-player-collisions ;; Invader bullets vs player
-            ;; Invader bullets vs barriers
-            update-explosions
-            update-particles
-            check-level-completion
-            check-invader-barrier-collisions
-            check-player-collision
-            ;; Remove screen shake after a few frames (enabled on desktop)
-            (#(if (and (:screen-shake %) (> (mod (:frame %) 10) 5))
-                (remove-screen-shake %)
-                %))
-            ;; Clear death sound flag for next frame
-            (#(dissoc % :death-sound-played-this-frame)))))))
+              ;; Remove screen shake after a few frames (enabled on desktop)
+              (#(if (and (:screen-shake %) (> (mod (:frame %) 10) 5))
+                  (remove-screen-shake %)
+                  %))))))))
 
 ;; Game loop with adaptive frame rate for mobile performance
 (defonce game-loop-id (atom nil))
@@ -1297,46 +1353,59 @@
         keys-pressed (:keys-pressed @game-state)
         is-moving (or (contains? keys-pressed "ArrowLeft")
                       (contains? keys-pressed "ArrowRight"))
-        is-mobile (:is-mobile @game-state)]
-    [:div {:style {:position "absolute"
-                   :left (:x player)
-                   :top (:y player)
-                   :width player-width
-                   :height player-height
-                   :display "flex"
-                   :align-items "center"
-                   :justify-content "center"
-                   :z-index 10}}
+        is-mobile (:is-mobile @game-state)
+        player-dying (:player-dying @game-state)
+        player-invulnerable (:player-invulnerable @game-state)
+        frame (:frame @game-state)
+        ;; Flash effect during invulnerability (every 8 frames)
+        invul-flash (and player-invulnerable (< (mod frame 16) 8))]
 
-     ;; Castle fortress + targeting system combination
-     [:div {:style {:position "relative"
-                    :font-size (if is-mobile "36px" "20px")
-                    :line-height "1"
-                    :color "#00ff00"
-                    ;; Disable glow on mobile, conditional glow on desktop
-                    :filter (when (and (not is-mobile) (not is-moving))
-                              "drop-shadow(0 0 8px #00ff00)")
-                    :animation (when-not is-moving "pulse 2s infinite")
-                    :user-select "none"
-                    :pointer-events "none"
-                    :transition "filter 0.2s ease, transform 0.2s ease"
-                    :transform (if is-moving "scale(1.1)" "scale(1)")}}
-      ;; Targeting system (red triangle positioned clearly above castle)
+    ;; Don't render player if dying
+    (when-not player-dying
       [:div {:style {:position "absolute"
-                     :top "-18px" ; Moved further up
-                     :left "50%"
-                     :transform "translateX(-50%)"
-                     :font-size "16px" ; Slightly larger
-                     :color "#ff0000"
-                     ;; Disable glow on mobile, conditional glow on desktop
-                     :filter (when (and (not is-mobile) (not is-moving))
-                               "drop-shadow(0 0 4px #ff0000)")
-                     :z-index 3}}
-       "🔺"]
-      ;; Base fortress (castle represents the defensive structure)
-      [:div {:style {:position "relative"
-                     :z-index 1}}
-       "🏰"]]])) ; Castle fortress with red targeting system
+                     :left (:x player)
+                     :top (:y player)
+                     :width player-width
+                     :height player-height
+                     :display "flex"
+                     :align-items "center"
+                     :justify-content "center"
+                     :z-index 10
+                     ;; Add opacity flashing during invulnerability
+                     :opacity (if invul-flash 0.3 1.0)}}
+
+       ;; Castle fortress + targeting system combination
+       [:div {:style {:position "relative"
+                      :font-size (if is-mobile "36px" "20px")
+                      :line-height "1"
+                      ;; Change color during invulnerability
+                      :color (if player-invulnerable "#ffff00" "#00ff00")
+                      ;; Disable glow on mobile, conditional glow on desktop
+                      :filter (when (and (not is-mobile) (not is-moving))
+                                (if player-invulnerable
+                                  "drop-shadow(0 0 8px #ffff00)"
+                                  "drop-shadow(0 0 8px #00ff00)"))
+                      :animation (when-not is-moving "pulse 2s infinite")
+                      :user-select "none"
+                      :pointer-events "none"
+                      :transition "filter 0.2s ease, transform 0.2s ease"
+                      :transform (if is-moving "scale(1.1)" "scale(1)")}}
+        ;; Targeting system (red triangle positioned clearly above castle)
+        [:div {:style {:position "absolute"
+                       :top "-18px" ; Moved further up
+                       :left "50%"
+                       :transform "translateX(-50%)"
+                       :font-size "16px" ; Slightly larger
+                       :color "#ff0000"
+                       ;; Disable glow on mobile, conditional glow on desktop
+                       :filter (when (and (not is-mobile) (not is-moving))
+                                 "drop-shadow(0 0 4px #ff0000)")
+                       :z-index 3}}
+         "🔺"]
+        ;; Base fortress (castle represents the defensive structure)
+        [:div {:style {:position "relative"
+                       :z-index 1}}
+         "🏰"]]]))) ; Castle fortress with red targeting system
 
 (defn bullet-component [bullet]
   [:div {:style {:position "absolute"
